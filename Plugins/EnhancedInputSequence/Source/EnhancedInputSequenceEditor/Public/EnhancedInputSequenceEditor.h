@@ -4,9 +4,13 @@
 
 #include "Modules/ModuleManager.h"
 
+class FAssetTypeActions_Base;
+
 class FEnhancedInputSequenceEditorModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
+protected:
+	TArray<TSharedPtr<FAssetTypeActions_Base>> RegisteredAssetTypeActions;
 };

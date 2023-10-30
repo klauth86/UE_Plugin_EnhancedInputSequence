@@ -34,6 +34,15 @@ public class EnhancedInputSequenceEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"CoreUObject",
+				"Engine",
+				"AssetTools",
+				"UnrealEd",
+				"SlateCore",
+				"Slate",
+				"GraphEditor",
+				"ApplicationCore",
+				"EnhancedInputSequence"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);
