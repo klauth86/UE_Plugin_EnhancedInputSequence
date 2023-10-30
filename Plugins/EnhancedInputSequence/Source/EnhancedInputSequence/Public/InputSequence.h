@@ -246,7 +246,7 @@ protected:
 	uint8 bHasResetTime : 1;
 
 	/* Time interval, after which asset will be reset to initial state if no any successful steps will be made during that period */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bIsResetAfterTime))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
 	float ResetTime;
 
 	/* If true, active states will continue to try stepping further even if Game is paused (Input Sequence is stepping by OnInput method call) */

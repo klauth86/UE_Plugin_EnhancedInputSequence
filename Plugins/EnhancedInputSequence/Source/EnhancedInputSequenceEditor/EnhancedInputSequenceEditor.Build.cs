@@ -42,7 +42,10 @@ public class EnhancedInputSequenceEditor : ModuleRules
 				"Slate",
 				"GraphEditor",
 				"ApplicationCore",
-				"EnhancedInputSequence"
+				"EnhancedInputSequence",
+				"KismetWidgets",
+				"EnhancedInput",
+				"AssetRegistry"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

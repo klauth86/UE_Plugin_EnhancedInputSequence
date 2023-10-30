@@ -7,10 +7,18 @@
 #include "AssetTypeCategories.h"
 #include "InputSequence.h"
 
+#include "InputAction.h"
+
 #include "ISGraph.h"
 #include "ISGraphSchema.h"
 #include "ISGraphNodes.h"
 #include "EdGraphNode_Comment.h"
+
+#include "ConnectionDrawingPolicy.h"
+#include "SLevelOfDetailBranchNode.h"
+#include "SPinTypeSelector.h"
+#include "SGraphActionMenu.h"
+#include "KismetPins/SGraphPinExec.h"
 
 #include "EdGraphUtilities.h"
 #include "GraphEditorActions.h"
@@ -19,8 +27,889 @@
 #include "Framework/Commands/GenericCommands.h"
 
 #include "IAssetTools.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #define LOCTEXT_NAMESPACE "FEnhancedInputSequenceEditorModule"
+
+void AddPin(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params, TObjectPtr<UInputAction> inputActionObj)
+{
+	UEdGraphPin* graphPin = node->CreatePin(EGPD_Output, category, pinName, params);
+
+	if (inputActionObj)
+	{
+		if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(node))
+		{
+			inputGraphNode->GetInputActions().Add(pinName, inputActionObj);
+		}
+	}
+
+	node->Modify();
+
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(node))
+	{
+		dynamicGraphNode->OnUpdateGraphNode.ExecuteIfBound();
+	}
+}
+
+//------------------------------------------------------
+// SISGraphNode_Dynamic
+//------------------------------------------------------
+
+class SISGraphNode_Dynamic : public SGraphNode
+{
+public:
+	SLATE_BEGIN_ARGS(SISGraphNode_Dynamic) {}
+	SLATE_END_ARGS();
+
+	void Construct(const FArguments& InArgs, UEdGraphNode* InNode);
+
+	virtual ~SISGraphNode_Dynamic();
+};
+
+void SISGraphNode_Dynamic::Construct(const FArguments& InArgs, UEdGraphNode* InNode)
+{
+	SetCursor(EMouseCursor::CardinalCross);
+
+	GraphNode = InNode;
+
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(InNode))
+	{
+		dynamicGraphNode->OnUpdateGraphNode.BindLambda([&]() { UpdateGraphNode(); });
+	}
+
+	UpdateGraphNode();
+}
+
+SISGraphNode_Dynamic::~SISGraphNode_Dynamic()
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
+	{
+		dynamicGraphNode->OnUpdateGraphNode.Unbind();
+	}
+}
+
+//------------------------------------------------------
+// SISParameterMenu
+//------------------------------------------------------
+
+class SISParameterMenu : public SCompoundWidget
+{
+public:
+	DECLARE_DELEGATE_RetVal_OneParam(FText, FGetSectionTitle, int32);
+
+	SLATE_BEGIN_ARGS(SISParameterMenu) : _AutoExpandMenu(false) {}
+
+		SLATE_ARGUMENT(bool, AutoExpandMenu)
+		SLATE_EVENT(FGetSectionTitle, OnGetSectionTitle)
+	SLATE_END_ARGS();
+
+	void Construct(const FArguments& InArgs)
+	{
+		this->bAutoExpandMenu = InArgs._AutoExpandMenu;
+
+		ChildSlot
+			[
+				SNew(SBorder).BorderImage(FAppStyle::GetBrush("Menu.Background")).Padding(5)
+					[
+						SNew(SBox)
+							.MinDesiredWidth(300)
+							.MaxDesiredHeight(700) // Set max desired height to prevent flickering bug for menu larger than screen
+							[
+								SAssignNew(GraphMenu, SGraphActionMenu)
+									.OnCollectStaticSections(this, &SISParameterMenu::OnCollectStaticSections)
+									.OnGetSectionTitle(this, &SISParameterMenu::OnGetSectionTitle)
+									.OnCollectAllActions(this, &SISParameterMenu::CollectAllActions)
+									.OnActionSelected(this, &SISParameterMenu::OnActionSelected)
+									.SortItemsRecursively(false)
+									.AlphaSortItems(false)
+									.AutoExpandActionMenu(bAutoExpandMenu)
+									.ShowFilterTextBox(true)
+									////// TODO.OnCreateCustomRowExpander_Static(&SNiagaraParameterMenu::CreateCustomActionExpander)
+									////// TODO.OnCreateWidgetForAction_Lambda([](const FCreateWidgetForActionData* InData) { return SNew(SNiagaraGraphActionWidget, InData); })
+							]
+					]
+			];
+	}
+
+	TSharedPtr<SEditableTextBox> GetSearchBox() { return GraphMenu->GetFilterTextBox(); }
+
+protected:
+
+	virtual void OnCollectStaticSections(TArray<int32>& StaticSectionIDs) = 0;
+
+	virtual FText OnGetSectionTitle(int32 InSectionID) = 0;
+
+	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) = 0;
+
+	virtual void OnActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedActions, ESelectInfo::Type InSelectionType) = 0;
+
+private:
+
+	bool bAutoExpandMenu;
+
+	TSharedPtr<SGraphActionMenu> GraphMenu;
+};
+
+//------------------------------------------------------
+// SISParameterMenu_Pin
+//------------------------------------------------------
+
+class SISParameterMenu_Pin : public SISParameterMenu
+{
+public:
+	SLATE_BEGIN_ARGS(SISParameterMenu_Pin)
+		: _AutoExpandMenu(false)
+		{}
+		//~ Begin Required Args
+		SLATE_ARGUMENT(UEdGraphNode*, Node)
+		//~ End Required Args
+		SLATE_ARGUMENT(bool, AutoExpandMenu)
+	SLATE_END_ARGS();
+
+	void Construct(const FArguments& InArgs)
+	{
+		this->Node = InArgs._Node;
+
+		SISParameterMenu::FArguments SuperArgs;
+		SuperArgs._AutoExpandMenu = InArgs._AutoExpandMenu;
+		SISParameterMenu::Construct(SuperArgs);
+	}
+
+protected:
+
+	virtual void OnCollectStaticSections(TArray<int32>& StaticSectionIDs) override
+	{
+		StaticSectionIDs.Add(1);
+	}
+
+	virtual FText OnGetSectionTitle(int32 InSectionID) override
+	{
+		return LOCTEXT("SISParameterMenu_Pin_SectionTitle", "Input Actions");
+	}
+
+	void CollectAction(const FName& inputName, UInputAction* inputAction, TSet<int32>& alreadyAdded, int& mappingIndex, const FText& toolTip, int32 sectionID, TArray<TSharedPtr<FEdGraphSchemaAction>>& schemaActions)
+	{
+		if (Node && Node->FindPin(inputName))
+		{
+			alreadyAdded.Add(mappingIndex);
+		}
+		else
+		{
+			TSharedPtr<FISGraphSchemaAction_AddPin> schemaAction(
+				new FISGraphSchemaAction_AddPin(
+					FText::GetEmpty()
+					, FText::FromName(inputName)
+					, toolTip
+					, 0
+					, sectionID
+				)
+			);
+
+			schemaAction->InputAction = inputAction;
+			schemaAction->InputIndex = mappingIndex;
+			schemaAction->CorrectedInputIndex = 0;
+
+			schemaActions.Add(schemaAction);
+		}
+
+		mappingIndex++;
+	}
+
+	const FText simpleFormat = NSLOCTEXT("SISParameterMenu_Pin", "AddPin_Tooltip", "Add {0} for {1}");
+
+	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) override
+	{
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+		FARFilter Filter;
+		Filter.ClassPaths.Add(UInputAction::StaticClass()->GetClassPathName());
+		Filter.bRecursiveClasses = true;
+		Filter.bRecursivePaths = true;
+
+		TArray<FAssetData> AssetList;
+		AssetRegistryModule.Get().GetAssets(Filter, AssetList);
+
+		TSet<UInputAction*> inputActions;
+
+		for (const FAssetData& assetData : AssetList)
+		{
+			if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
+			{
+				inputActions.FindOrAdd(inputAction);
+			}
+		}
+
+		int32 mappingIndex = 0;
+
+		TSet<int32> alreadyAdded;
+
+		TArray<TSharedPtr<FEdGraphSchemaAction>> schemaActions;
+
+		// Enhanced Input
+		for (UInputAction* inputAction : inputActions)
+		{
+			CollectAction(
+				inputAction->GetFName()
+				, inputAction
+				, alreadyAdded
+				, mappingIndex
+				, FText::Format(simpleFormat, FText::FromString("Action pin"), FText::FromName(inputAction->GetFName()))
+				, 1
+				, schemaActions
+			);
+		}
+
+		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
+		{
+			TSharedPtr<FISGraphSchemaAction_AddPin> addPinAction = StaticCastSharedPtr<FISGraphSchemaAction_AddPin>(schemaAction);
+
+			for (int32 alreadyAddedIndex : alreadyAdded)
+			{
+				if (alreadyAddedIndex < addPinAction->InputIndex) addPinAction->CorrectedInputIndex++;
+			}
+
+			OutAllActions.AddAction(schemaAction);
+		}
+	}
+
+	virtual void OnActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedActions, ESelectInfo::Type InSelectionType) override
+	{
+		if (InSelectionType == ESelectInfo::OnMouseClick || InSelectionType == ESelectInfo::OnKeyPress || SelectedActions.Num() == 0)
+		{
+			for (int32 ActionIndex = 0; ActionIndex < SelectedActions.Num(); ActionIndex++)
+			{
+				FSlateApplication::Get().DismissAllMenus();
+				SelectedActions[ActionIndex]->PerformAction(Node->GetGraph(), Node->FindPin(NAME_None, EGPD_Input), FVector2D::ZeroVector);
+			}
+		}
+	}
+
+private:
+
+	UEdGraphNode* Node;
+};
+
+//------------------------------------------------------
+// SGraphPin_Add
+//------------------------------------------------------
+
+class SGraphPin_Add : public SGraphPin
+{
+public:
+	SLATE_BEGIN_ARGS(SGraphPin_Add) {}
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
+
+protected:
+
+	TSharedRef<SWidget> OnGetAddButtonMenuContent();
+
+protected:
+
+	TSharedPtr<SComboButton> AddButton;
+};
+
+void SGraphPin_Add::Construct(const FArguments& Args, UEdGraphPin* InPin)
+{
+	SGraphPin::FArguments InArgs = SGraphPin::FArguments();
+
+	bUsePinColorForText = InArgs._UsePinColorForText;
+	this->SetCursor(EMouseCursor::Hand);
+
+	SetVisibility(MakeAttributeSP(this, &SGraphPin_Add::GetPinVisiblity));
+
+	GraphPinObj = InPin;
+	check(GraphPinObj != NULL);
+
+	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
+	checkf(
+		Schema,
+		TEXT("Missing schema for pin: %s with outer: %s of type %s"),
+		*(GraphPinObj->GetName()),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
+	);
+
+	TSharedRef<SWidget> PinWidgetRef = SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"));
+
+	PinImage = PinWidgetRef;
+
+	// Create the pin indicator widget (used for watched values)
+	static const FName NAME_NoBorder("NoBorder");
+	TSharedRef<SWidget> PinStatusIndicator =
+		SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+		.Visibility(this, &SGraphPin_Add::GetPinStatusIconVisibility)
+		.ContentPadding(0)
+		.OnClicked(this, &SGraphPin_Add::ClickedOnPinStatusIcon)
+		[
+			SNew(SImage).Image(this, &SGraphPin_Add::GetPinStatusIcon)
+		];
+
+	TSharedRef<SWidget> LabelWidget = GetLabelWidget(InArgs._PinLabelStyle);
+
+	// Create the widget used for the pin body (status indicator, label, and value)
+	LabelAndValue =
+		SNew(SWrapBox)
+		.PreferredSize(150.f);
+
+	LabelAndValue->AddSlot()
+		.VAlign(VAlign_Center)
+		[
+			LabelWidget
+		];
+
+	LabelAndValue->AddSlot()
+		.VAlign(VAlign_Center)
+		[
+			PinStatusIndicator
+		];
+
+	TSharedPtr<SHorizontalBox> PinContent;
+	FullPinHorizontalRowWidget = PinContent = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(0, 0, InArgs._SideToSideMargin, 0)
+		[
+			LabelAndValue.ToSharedRef()
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			PinWidgetRef
+		];
+
+	// Set up a hover for pins that is tinted the color of the pin.
+	SBorder::Construct(SBorder::FArguments()
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
+		.BorderBackgroundColor(this, &SGraphPin_Add::GetPinColor)
+		[
+			SAssignNew(AddButton, SComboButton)
+				.HasDownArrow(false)
+				.ButtonStyle(FAppStyle::Get(), "NoBorder")
+				.ForegroundColor(FSlateColor::UseForeground())
+				.OnGetMenuContent(this, &SGraphPin_Add::OnGetAddButtonMenuContent)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.ButtonContent()
+				[
+					PinContent.ToSharedRef()
+				]
+		]
+	);
+
+	this->SetToolTipText(LOCTEXT("AddPin_ToolTip", "Click to add new pin"));
+}
+
+TSharedRef<SWidget> SGraphPin_Add::OnGetAddButtonMenuContent()
+{
+	TSharedRef<SISParameterMenu_Pin> MenuWidget = SNew(SISParameterMenu_Pin).Node(GetPinObj()->GetOwningNode());
+
+	AddButton->SetMenuContentWidgetToFocus(MenuWidget->GetSearchBox());
+
+	return MenuWidget;
+}
+
+//------------------------------------------------------
+// SGraphPin_HubAdd
+//------------------------------------------------------
+
+class SGraphPin_HubAdd : public SGraphPin
+{
+public:
+	SLATE_BEGIN_ARGS(SGraphPin_HubAdd) {}
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
+
+protected:
+
+	FReply OnClicked_AddPin();
+};
+
+void SGraphPin_HubAdd::Construct(const FArguments& Args, UEdGraphPin* InPin)
+{
+	SGraphPin::FArguments InArgs = SGraphPin::FArguments();
+
+	bUsePinColorForText = InArgs._UsePinColorForText;
+	this->SetCursor(EMouseCursor::Hand);
+
+	SetVisibility(MakeAttributeSP(this, &SGraphPin_HubAdd::GetPinVisiblity));
+
+	GraphPinObj = InPin;
+	check(GraphPinObj != NULL);
+
+	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
+	checkf(
+		Schema,
+		TEXT("Missing schema for pin: %s with outer: %s of type %s"),
+		*(GraphPinObj->GetName()),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
+	);
+
+	TSharedRef<SWidget> PinWidgetRef = SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"));
+
+	PinImage = PinWidgetRef;
+
+	// Create the pin indicator widget (used for watched values)
+	static const FName NAME_NoBorder("NoBorder");
+	TSharedRef<SWidget> PinStatusIndicator =
+		SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+		.Visibility(this, &SGraphPin_HubAdd::GetPinStatusIconVisibility)
+		.ContentPadding(0)
+		.OnClicked(this, &SGraphPin_HubAdd::ClickedOnPinStatusIcon)
+		[
+			SNew(SImage).Image(this, &SGraphPin_HubAdd::GetPinStatusIcon)
+		];
+
+	TSharedRef<SWidget> LabelWidget = GetLabelWidget(InArgs._PinLabelStyle);
+
+	// Create the widget used for the pin body (status indicator, label, and value)
+	LabelAndValue =
+		SNew(SWrapBox)
+		.PreferredSize(150.f);
+
+	LabelAndValue->AddSlot()
+		.VAlign(VAlign_Center)
+		[
+			LabelWidget
+		];
+
+	LabelAndValue->AddSlot()
+		.VAlign(VAlign_Center)
+		[
+			PinStatusIndicator
+		];
+
+	TSharedPtr<SHorizontalBox> PinContent;
+	FullPinHorizontalRowWidget = PinContent = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		.Padding(0, 0, InArgs._SideToSideMargin, 0)
+		[
+			LabelAndValue.ToSharedRef()
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			PinWidgetRef
+		];
+
+	// Set up a hover for pins that is tinted the color of the pin.
+	SBorder::Construct(SBorder::FArguments()
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
+		.BorderBackgroundColor(this, &SGraphPin_HubAdd::GetPinColor)
+		[
+			SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "NoBorder")
+				.ForegroundColor(FSlateColor::UseForeground())
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked_Raw(this, &SGraphPin_HubAdd::OnClicked_AddPin)
+				[
+					PinContent.ToSharedRef()
+				]
+		]
+	);
+
+	this->SetToolTipText(LOCTEXT("AddPin_ToolTip", "Click to add new pin"));
+}
+
+FReply SGraphPin_HubAdd::OnClicked_AddPin()
+{
+	if (UEdGraphPin* FromPin = GetPinObj())
+	{
+		const FScopedTransaction Transaction(LOCTEXT("K2_AddPin", "Add Pin"));
+
+		int32 outputPinsCount = 0;
+		for (UEdGraphPin* pin : FromPin->GetOwningNode()->Pins)
+		{
+			if (pin->Direction == EGPD_Output) outputPinsCount++;
+		}
+
+		UEdGraphNode::FCreatePinParams params;
+		params.Index = outputPinsCount;
+
+		AddPin(FromPin->GetOwningNode(), UISGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), params, nullptr);
+	}
+
+	return FReply::Handled();
+}
+
+//------------------------------------------------------
+// SGraphPin_HubExec
+//------------------------------------------------------
+
+class SGraphPin_HubExec : public SGraphPinExec
+{
+public:
+	SLATE_BEGIN_ARGS(SGraphPin_HubExec) {}
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
+
+protected:
+
+	FText GetTooltipText_RemovePin() const;
+	FReply OnClicked_RemovePin() const;
+};
+
+void SGraphPin_HubExec::Construct(const FArguments& Args, UEdGraphPin* InPin)
+{
+	SGraphPin::FArguments InArgs = SGraphPin::FArguments();
+
+	bUsePinColorForText = InArgs._UsePinColorForText;
+	this->SetCursor(EMouseCursor::Default);
+
+	SetVisibility(MakeAttributeSP(this, &SGraphPin_HubExec::GetPinVisiblity));
+
+	GraphPinObj = InPin;
+	check(GraphPinObj != NULL);
+
+	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
+	checkf(
+		Schema,
+		TEXT("Missing schema for pin: %s with outer: %s of type %s"),
+		*(GraphPinObj->GetName()),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"),
+		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
+	);
+
+	const bool bIsInput = (GetDirection() == EGPD_Input);
+
+	// Create the pin icon widget
+	TSharedRef<SWidget> PinWidgetRef = SPinTypeSelector::ConstructPinTypeImage(
+		MakeAttributeSP(this, &SGraphPin_HubExec::GetPinIcon),
+		MakeAttributeSP(this, &SGraphPin_HubExec::GetPinColor),
+		MakeAttributeSP(this, &SGraphPin_HubExec::GetSecondaryPinIcon),
+		MakeAttributeSP(this, &SGraphPin_HubExec::GetSecondaryPinColor));
+	PinImage = PinWidgetRef;
+
+	PinWidgetRef->SetCursor(
+		TAttribute<TOptional<EMouseCursor::Type> >::Create(
+			TAttribute<TOptional<EMouseCursor::Type> >::FGetter::CreateRaw(this, &SGraphPin_HubExec::GetPinCursor)
+		)
+	);
+
+	// Create the pin indicator widget (used for watched values)
+	static const FName NAME_NoBorder("NoBorder");
+	TSharedRef<SWidget> PinStatusIndicator =
+		SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+		.Visibility(this, &SGraphPin_HubExec::GetPinStatusIconVisibility)
+		.ContentPadding(0)
+		.OnClicked(this, &SGraphPin_HubExec::ClickedOnPinStatusIcon)
+		[
+			SNew(SImage)
+				.Image(this, &SGraphPin_HubExec::GetPinStatusIcon)
+		];
+
+	TSharedRef<SWidget> LabelWidget = GetLabelWidget(InArgs._PinLabelStyle);
+
+	// Create the widget used for the pin body (status indicator, label, and value)
+	LabelAndValue =
+		SNew(SWrapBox)
+		.PreferredSize(150.f);
+
+	if (!bIsInput)
+	{
+		LabelAndValue->AddSlot()
+			.VAlign(VAlign_Center)
+			[
+				PinStatusIndicator
+			];
+
+		LabelAndValue->AddSlot()
+			.VAlign(VAlign_Center)
+			[
+				LabelWidget
+			];
+	}
+	else
+	{
+		LabelAndValue->AddSlot()
+			.VAlign(VAlign_Center)
+			[
+				LabelWidget
+			];
+
+		ValueWidget = GetDefaultValueWidget();
+
+		if (ValueWidget != SNullWidget::NullWidget)
+		{
+			TSharedPtr<SBox> ValueBox;
+			LabelAndValue->AddSlot()
+				.Padding(bIsInput ? FMargin(InArgs._SideToSideMargin, 0, 0, 0) : FMargin(0, 0, InArgs._SideToSideMargin, 0))
+				.VAlign(VAlign_Center)
+				[
+					SAssignNew(ValueBox, SBox)
+						.Padding(0.0f)
+						[
+							ValueWidget.ToSharedRef()
+						]
+				];
+
+			if (!DoesWidgetHandleSettingEditingEnabled())
+			{
+				ValueBox->SetEnabled(TAttribute<bool>(this, &SGraphPin_HubExec::IsEditingEnabled));
+			}
+		}
+
+		LabelAndValue->AddSlot()
+			.VAlign(VAlign_Center)
+			[
+				PinStatusIndicator
+			];
+	}
+
+	TSharedPtr<SHorizontalBox> PinContent;
+	if (bIsInput) // Input pin
+	{
+		FullPinHorizontalRowWidget = PinContent =
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(0, 0, InArgs._SideToSideMargin, 0)
+			[
+				PinWidgetRef
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				LabelAndValue.ToSharedRef()
+			];
+	}
+	else // Output pin
+	{
+		FullPinHorizontalRowWidget = PinContent = SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton).ToolTipText_Raw(this, &SGraphPin_HubExec::GetTooltipText_RemovePin)
+					.Cursor(EMouseCursor::Hand)
+					.ButtonStyle(FAppStyle::Get(), "NoBorder")
+					.ForegroundColor(FSlateColor::UseForeground())
+					.OnClicked_Raw(this, &SGraphPin_HubExec::OnClicked_RemovePin)
+					[
+						SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
+					]
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(InArgs._SideToSideMargin, 0, InArgs._SideToSideMargin, 0)
+			[
+				LabelAndValue.ToSharedRef()
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			[
+				PinWidgetRef
+			];
+	}
+
+	// Set up a hover for pins that is tinted the color of the pin.
+	SBorder::Construct(SBorder::FArguments()
+		.BorderImage(this, &SGraphPin_HubExec::GetPinBorder)
+		.BorderBackgroundColor(this, &SGraphPin_HubExec::GetPinColor)
+		.OnMouseButtonDown(this, &SGraphPin_HubExec::OnPinNameMouseDown)
+		[
+			SNew(SBorder)
+				.BorderImage(CachedImg_Pin_DiffOutline)
+				.BorderBackgroundColor(this, &SGraphPin_HubExec::GetPinDiffColor)
+				[
+					SNew(SLevelOfDetailBranchNode)
+						.UseLowDetailSlot(this, &SGraphPin_HubExec::UseLowDetailPinNames)
+						.LowDetail()
+						[
+							//@TODO: Try creating a pin-colored line replacement that doesn't measure text / call delegates but still renders
+							PinWidgetRef
+						]
+						.HighDetail()
+						[
+							PinContent.ToSharedRef()
+						]
+				]
+		]
+	);
+
+	TSharedPtr<IToolTip> TooltipWidget = SNew(SToolTip)
+		.Text(this, &SGraphPin_HubExec::GetTooltipText);
+
+	SetToolTip(TooltipWidget);
+
+	CachePinIcons();
+}
+
+FText SGraphPin_HubExec::GetTooltipText_RemovePin() const { return LOCTEXT("SGraphPin_HubExec_TooltipText_RemovePin", "Click to remove Hub pin"); }
+
+FReply SGraphPin_HubExec::OnClicked_RemovePin() const
+{
+	if (UEdGraphPin* FromPin = GetPinObj())
+	{
+		if (UEdGraphNode* FromNode = FromPin->GetOwningNode())
+		{
+			const FScopedTransaction Transaction(LOCTEXT("K2_DeletePin", "Delete Pin"));
+
+			int nextAfterRemovedIndex = FromNode->Pins.IndexOfByKey(FromPin) + 1;
+
+			if (FromNode->Pins.IsValidIndex(nextAfterRemovedIndex))
+			{
+				for (size_t i = nextAfterRemovedIndex; i < FromNode->Pins.Num(); i++)
+				{
+					UEdGraphPin* pin = FromNode->Pins[i];
+
+					if (pin->Direction == EGPD_Output && pin->PinType.PinCategory == UISGraphSchema::PC_Exec)
+					{
+						pin->PinName = FName(FString::FromInt(i - 1));
+					}
+				}
+			}
+
+			FromNode->RemovePin(FromPin);
+
+			FromNode->Modify();
+
+			if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(FromNode)) dynamicGraphNode->OnUpdateGraphNode.ExecuteIfBound();
+		}
+	}
+
+	return FReply::Handled();
+}
+
+//------------------------------------------------------
+// FISGraphNodeFactory
+//------------------------------------------------------
+
+TSharedPtr<SGraphNode> FISGraphNodeFactory::CreateNode(UEdGraphNode* InNode) const
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(InNode))
+	{
+		return SNew(SISGraphNode_Dynamic, dynamicGraphNode);
+	}
+
+	return nullptr;
+}
+
+//------------------------------------------------------
+// FISGraphPinFactory
+//------------------------------------------------------
+
+TSharedPtr<SGraphPin> FISGraphPinFactory::CreatePin(UEdGraphPin* InPin) const
+{
+	if (InPin->GetSchema()->IsA<UISGraphSchema>())
+	{
+		if (InPin->PinType.PinCategory == UISGraphSchema::PC_Exec)
+		{
+			if (InPin->GetOwningNode() && InPin->GetOwningNode()->IsA<UISGraphNode_Hub>())
+			{
+				return SNew(SGraphPin_HubExec, InPin);
+			}
+			else
+			{
+				return SNew(SGraphPinExec, InPin);
+			}
+		}
+
+		if (InPin->PinType.PinCategory == UISGraphSchema::PC_Add)
+		{
+			if (InPin->GetOwningNode() && InPin->GetOwningNode()->IsA<UISGraphNode_Hub>())
+			{
+				return SNew(SGraphPin_HubAdd, InPin);
+			}
+			else
+			{
+				return SNew(SGraphPin_Add, InPin);
+			}
+		}
+
+		return FGraphPanelPinFactory::CreatePin(InPin);
+	}
+
+	return nullptr;
+}
+
+//------------------------------------------------------
+// FISGraphPinConnectionFactory
+//------------------------------------------------------
+
+class FISConnectionDrawingPolicy : public FConnectionDrawingPolicy
+{
+public:
+	FISConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float ZoomFactor, const FSlateRect& InClippingRect, FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj)
+		: FConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, ZoomFactor, InClippingRect, InDrawElements)
+		, GraphObj(InGraphObj)
+	{}
+
+	virtual void DetermineWiringStyle(UEdGraphPin* OutputPin, UEdGraphPin* InputPin, /*inout*/ FConnectionParams& Params) override
+	{
+		FConnectionDrawingPolicy::DetermineWiringStyle(OutputPin, InputPin, Params);
+
+		if (OutputPin->PinType.PinCategory == UISGraphSchema::PC_Exec)
+		{
+			Params.WireThickness = 4;
+		}
+		else
+		{
+			Params.bUserFlag1 = true;
+		}
+
+		const bool bDeemphasizeUnhoveredPins = HoveredPins.Num() > 0;
+		if (bDeemphasizeUnhoveredPins)
+		{
+			ApplyHoverDeemphasis(OutputPin, InputPin, /*inout*/ Params.WireThickness, /*inout*/ Params.WireColor);
+		}
+	}
+
+	virtual void DrawSplineWithArrow(const FVector2D& StartPoint, const FVector2D& EndPoint, const FConnectionParams& Params) override
+	{
+		DrawConnection(
+			WireLayerID,
+			StartPoint,
+			EndPoint,
+			Params);
+
+		// Draw the arrow
+		if (ArrowImage != nullptr && Params.bUserFlag1)
+		{
+			FVector2D ArrowPoint = EndPoint - ArrowRadius;
+
+			FSlateDrawElement::MakeBox(
+				DrawElementsList,
+				ArrowLayerID,
+				FPaintGeometry(ArrowPoint, ArrowImage->ImageSize * ZoomFactor, ZoomFactor),
+				ArrowImage,
+				ESlateDrawEffect::None,
+				Params.WireColor
+			);
+		}
+	}
+
+protected:
+	UEdGraph* GraphObj;
+	TMap<UEdGraphNode*, int32> NodeWidgetMap;
+};
+
+FConnectionDrawingPolicy* FISGraphPinConnectionFactory::CreateConnectionPolicy(const UEdGraphSchema* Schema, int32 InBackLayerID, int32 InFrontLayerID, float ZoomFactor, const class FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const
+{
+	if (Schema->IsA<UISGraphSchema>())
+	{
+		return new FISConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, ZoomFactor, InClippingRect, InDrawElements, InGraphObj);;
+	}
+
+	return nullptr;
+}
 
 //------------------------------------------------------
 // FISGraphSchemaAction_NewComment
@@ -50,8 +939,125 @@ UEdGraphNode* FISGraphSchemaAction_NewComment::PerformAction(class UEdGraph* Par
 }
 
 //------------------------------------------------------
+// FISGraphSchemaAction_NewNode
+//------------------------------------------------------
+
+UEdGraphNode* FISGraphSchemaAction_NewNode::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	UEdGraphNode* ResultNode = NULL;
+
+	// If there is a template, we actually use it
+	if (NodeTemplate != NULL)
+	{
+		const FScopedTransaction Transaction(LOCTEXT("K2_AddNode", "Add Node"));
+		ParentGraph->Modify();
+		if (FromPin)
+		{
+			FromPin->Modify();
+		}
+
+		// set outer to be the graph so it doesn't go away
+		NodeTemplate->Rename(NULL, ParentGraph);
+		ParentGraph->AddNode(NodeTemplate, true, bSelectNewNode);
+
+		NodeTemplate->CreateNewGuid();
+		NodeTemplate->PostPlacedNewNode();
+		NodeTemplate->AllocateDefaultPins();
+		NodeTemplate->AutowireNewNode(FromPin);
+
+		NodeTemplate->NodePosX = Location.X;
+		NodeTemplate->NodePosY = Location.Y;
+		NodeTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
+
+		ResultNode = NodeTemplate;
+
+		ResultNode->SetFlags(RF_Transactional);
+	}
+
+	return ResultNode;
+}
+
+void FISGraphSchemaAction_NewNode::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	FEdGraphSchemaAction::AddReferencedObjects(Collector);
+
+	Collector.AddReferencedObject(NodeTemplate);
+}
+
+//------------------------------------------------------
+// FISGraphSchemaAction_AddPin
+//------------------------------------------------------
+
+UEdGraphNode* FISGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	UEdGraphNode* ResultNode = NULL;
+
+	if (InputAction)
+	{
+		const int32 execPinCount = 2;
+
+		const FScopedTransaction Transaction(LOCTEXT("K2_AddPin", "Add Pin"));
+
+		UEdGraphNode::FCreatePinParams params;
+		params.Index = CorrectedInputIndex + execPinCount;
+
+		AddPin(FromPin->GetOwningNode(), UISGraphSchema::PC_InputAction, InputAction->GetFName(), params, InputAction);
+	}
+
+	return ResultNode;
+}
+
+//------------------------------------------------------
 // UISGraphSchema
 //------------------------------------------------------
+
+template<class T>
+TSharedPtr<T> AddNewActionAs(FGraphContextMenuBuilder& ContextMenuBuilder, const FText& Category, const FText& MenuDesc, const FText& Tooltip, const int32 Grouping = 0)
+{
+	TSharedPtr<T> Action(new T(Category, MenuDesc, Tooltip, Grouping));
+	ContextMenuBuilder.AddAction(Action);
+	return Action;
+}
+
+const FName UISGraphSchema::PC_Exec("UISGraphSchema_PC_Exec");
+
+const FName UISGraphSchema::PC_Add("UISGraphSchema_PC_Add");
+
+const FName UISGraphSchema::PC_InputAction("UISGraphSchema_PC_InputAction");
+
+void UISGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
+{
+	{
+		// Add Input node
+		TSharedPtr<FISGraphSchemaAction_NewNode> Action = AddNewActionAs<FISGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Input", "Add Input node..."), LOCTEXT("AddNode_Input_Tooltip", "A new Input node"));
+		Action->NodeTemplate = NewObject<UISGraphNode_Input>(ContextMenuBuilder.OwnerOfTemporaries);
+	}
+
+	{
+		// Add Hub node
+		TSharedPtr<FISGraphSchemaAction_NewNode> Action = AddNewActionAs<FISGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Hub", "Add Hub node..."), LOCTEXT("AddNode_Hub_Tooltip", "A new Hub node"));
+		Action->NodeTemplate = NewObject<UISGraphNode_Hub>(ContextMenuBuilder.OwnerOfTemporaries);
+	}
+
+	{
+		// Add Reset node
+		TSharedPtr<FISGraphSchemaAction_NewNode> Action = AddNewActionAs<FISGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Reset", "Add Reset node..."), LOCTEXT("AddNode_Reset_Tooltip", "A new Reset node"));
+		Action->NodeTemplate = NewObject<UISGraphNode_Reset>(ContextMenuBuilder.OwnerOfTemporaries);
+	}
+}
+
+const FPinConnectionResponse UISGraphSchema::CanCreateConnection(const UEdGraphPin* pinA, const UEdGraphPin* pinB) const
+{
+	if (pinA == nullptr || pinB == nullptr) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("Pin(s)Null", "One or both of pins was null"));
+
+	if (pinA->GetOwningNode() == pinB->GetOwningNode()) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinsOfSameNode", "Both pins are on same node"));
+
+	if (pinA->Direction == pinB->Direction) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinsOfSameDirection", "Both pins have same direction (both input or both output)"));
+
+	if (pinA->PinType.PinCategory != pinB->PinType.PinCategory) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("PinsCategoryMismatched", "Pins Categories are mismatched (Flow pin should be connected to Flow pin, Input pin - to Input pin)"));
+
+	return FPinConnectionResponse(CONNECT_RESPONSE_BREAK_OTHERS_AB, TEXT(""));
+}
 
 void UISGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 {
@@ -65,6 +1071,97 @@ void UISGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 TSharedPtr<FEdGraphSchemaAction> UISGraphSchema::GetCreateCommentAction() const
 {
 	return TSharedPtr<FEdGraphSchemaAction>(static_cast<FEdGraphSchemaAction*>(new FISGraphSchemaAction_NewComment));
+}
+
+//------------------------------------------------------
+// UISGraphNode_Entry
+//------------------------------------------------------
+
+void UISGraphNode_Entry::AllocateDefaultPins()
+{
+	CreatePin(EGPD_Output, UISGraphSchema::PC_Exec, NAME_None);
+}
+
+FText UISGraphNode_Entry::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	return LOCTEXT("UISGraphNode_Entry_NodeTitle", "Entry");
+}
+
+FLinearColor UISGraphNode_Entry::GetNodeTitleColor() const { return FLinearColor::Green; }
+
+FText UISGraphNode_Entry::GetTooltipText() const
+{
+	return LOCTEXT("UISGraphNode_Entry_TooltipText", "This is Entry node of Input sequence...");
+}
+
+//------------------------------------------------------
+// UISGraphNode_Input
+//------------------------------------------------------
+
+void UISGraphNode_Input::AllocateDefaultPins()
+{
+	CreatePin(EGPD_Input, UISGraphSchema::PC_Exec, NAME_None);
+	CreatePin(EGPD_Output, UISGraphSchema::PC_Exec, NAME_None);
+
+	CreatePin(EGPD_Output, UISGraphSchema::PC_Add, NAME_None);
+}
+
+FText UISGraphNode_Input::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	return LOCTEXT("UISGraphNode_Input_NodeTitle", "Input");
+}
+
+FLinearColor UISGraphNode_Input::GetNodeTitleColor() const { return FLinearColor::Blue; }
+
+FText UISGraphNode_Input::GetTooltipText() const
+{
+	return LOCTEXT("UISGraphNode_Input_TooltipText", "This is Input node of Input sequence...");
+}
+
+//------------------------------------------------------
+// UISGraphNode_Hub
+//------------------------------------------------------
+
+void UISGraphNode_Hub::AllocateDefaultPins()
+{
+	CreatePin(EGPD_Input, UISGraphSchema::PC_Exec, NAME_None);
+
+	CreatePin(EGPD_Output, UISGraphSchema::PC_Exec, "1");
+	CreatePin(EGPD_Output, UISGraphSchema::PC_Add, NAME_None);
+
+}
+
+FText UISGraphNode_Hub::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	return LOCTEXT("UISGraphNode_Hub_NodeTitle", "Hub");
+}
+
+FLinearColor UISGraphNode_Hub::GetNodeTitleColor() const { return FLinearColor::Green; }
+
+FText UISGraphNode_Hub::GetTooltipText() const
+{
+	return LOCTEXT("UISGraphNode_Hub_TooltipText", "This is Hub node of Input sequence...");
+}
+
+//------------------------------------------------------
+// UISGraphNode_Reset
+//------------------------------------------------------
+
+void UISGraphNode_Reset::AllocateDefaultPins()
+{
+	CreatePin(EGPD_Input, UISGraphSchema::PC_Exec, NAME_None);
+}
+
+FText UISGraphNode_Reset::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	return LOCTEXT("UISGraphNode_Reset_NodeTitle", "Reset");
+}
+
+FLinearColor UISGraphNode_Reset::GetNodeTitleColor() const { return FLinearColor::Green; }
+
+FText UISGraphNode_Reset::GetTooltipText() const
+{
+	return LOCTEXT("UISGraphNode_Reset_TooltipText", "This is Reset node of Input sequence...");
 }
 
 //------------------------------------------------------
@@ -744,10 +1841,28 @@ void FEnhancedInputSequenceEditorModule::StartupModule()
 	{
 		if (registeredAssetTypeAction.IsValid()) AssetTools.RegisterAssetTypeActions(registeredAssetTypeAction.ToSharedRef());
 	}
+
+	ISGraphNodeFactory = MakeShareable(new FISGraphNodeFactory());
+	FEdGraphUtilities::RegisterVisualNodeFactory(ISGraphNodeFactory);
+
+	ISGraphPinFactory = MakeShareable(new FISGraphPinFactory());
+	FEdGraphUtilities::RegisterVisualPinFactory(ISGraphPinFactory);
+
+	ISGraphPinConnectionFactory = MakeShareable(new FISGraphPinConnectionFactory());
+	FEdGraphUtilities::RegisterVisualPinConnectionFactory(ISGraphPinConnectionFactory);
 }
 
 void FEnhancedInputSequenceEditorModule::ShutdownModule()
 {
+	FEdGraphUtilities::UnregisterVisualPinConnectionFactory(ISGraphPinConnectionFactory);
+	ISGraphPinConnectionFactory.Reset();
+
+	FEdGraphUtilities::UnregisterVisualPinFactory(ISGraphPinFactory);
+	ISGraphPinFactory.Reset();
+
+	FEdGraphUtilities::UnregisterVisualNodeFactory(ISGraphNodeFactory);
+	ISGraphNodeFactory.Reset();
+
 	if (FModuleManager::Get().IsModuleLoaded(AssetToolsModuleName))
 	{
 		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(AssetToolsModuleName).Get();
