@@ -6,6 +6,7 @@
 #include "ISGraphNodes.generated.h"
 
 class UInputAction;
+enum class ETriggerEvent :uint8;
 
 //------------------------------------------------------
 // UISGraphNode_Entry
@@ -65,10 +66,6 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	virtual FText GetTooltipText() const override;
-
-	TMap<FName, TSoftObjectPtr<UInputAction>>& GetInputActions() { return InputActions; }
-
-protected:
 
 	UPROPERTY()
 	TMap<FName, TSoftObjectPtr<UInputAction>> InputActions;
