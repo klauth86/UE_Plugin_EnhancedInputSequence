@@ -45,7 +45,8 @@ public class EnhancedInputSequenceEditor : ModuleRules
 				"EnhancedInputSequence",
 				"KismetWidgets",
 				"EnhancedInput",
-				"AssetRegistry"
+				"AssetRegistry",
+				"InputCore"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

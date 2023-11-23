@@ -2,6 +2,8 @@
 
 #include "EnhancedInputSequenceEditor.h"
 
+#include "Kismet/KismetTextLibrary.h"
+
 #include "Factory_InputSequence.h"
 #include "AssetTypeActions_InputSequence.h"
 #include "AssetTypeCategories.h"
@@ -20,6 +22,8 @@
 #include "SPinTypeSelector.h"
 #include "SGraphActionMenu.h"
 #include "KismetPins/SGraphPinExec.h"
+#include "Widgets/Layout/SGridPanel.h"
+#include "Widgets/Input/SNumericEntryBox.h"
 
 #include "EdGraphUtilities.h"
 #include "GraphEditorActions.h"
@@ -29,10 +33,31 @@
 
 #include "IAssetTools.h"
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "Brushes/SlateImageBrush.h"
 
 #define LOCTEXT_NAMESPACE "FEnhancedInputSequenceEditorModule"
 
-void AddPin(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params, TObjectPtr<UInputAction> inputActionObj)
+const FVector2D Icon8x8(8.0f, 8.0f);
+const auto extention = TEXT(".png");
+
+const FCheckBoxStyle checkBoxStyle = FCheckBoxStyle()
+.SetCheckBoxType(ESlateCheckBoxType::CheckBox)
+.SetUncheckedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox" + extention, Icon8x8))
+.SetUncheckedHoveredImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox" + extention, Icon8x8))
+.SetUncheckedPressedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Hovered" + extention, Icon8x8, FLinearColor(0.5f, 0.5f, 0.5f)))
+.SetCheckedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Checked_Hovered" + extention, Icon8x8))
+.SetCheckedHoveredImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Checked_Hovered" + extention, Icon8x8, FLinearColor(0.5f, 0.5f, 0.5f)))
+.SetCheckedPressedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Checked" + extention, Icon8x8))
+.SetUndeterminedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Undetermined" + extention, Icon8x8))
+.SetUndeterminedHoveredImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Undetermined_Hovered" + extention, Icon8x8))
+.SetUndeterminedPressedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Undetermined_Hovered" + extention, Icon8x8, FLinearColor(0.5f, 0.5f, 0.5f)));
+
+const FSlateFontInfo pinFontInfo(FCoreStyle::GetDefaultFont(), 6, "Regular");
+const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 8, "Regular");
+const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 8, "Bold");
+const float padding = 2;
+
+void AddPinToDynamicNode(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params, TObjectPtr<UInputAction> inputActionObj)
 {
 	UEdGraphPin* graphPin = node->CreatePin(EGPD_Output, category, pinName, params);
 
@@ -92,6 +117,10 @@ public:
 	void Construct(const FArguments& InArgs, UEdGraphNode* InNode);
 
 	virtual ~SISGraphNode_Dynamic();
+
+protected:
+
+	virtual void CreatePinWidgets() override;
 };
 
 void SISGraphNode_Dynamic::Construct(const FArguments& InArgs, UEdGraphNode* InNode)
@@ -113,6 +142,31 @@ SISGraphNode_Dynamic::~SISGraphNode_Dynamic()
 	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
 	{
 		dynamicGraphNode->OnUpdateGraphNode.Unbind();
+	}
+}
+
+void SISGraphNode_Dynamic::CreatePinWidgets()
+{
+	// Create Pin widgets for each of the pins.
+	for (int32 PinIndex = 0; PinIndex < GraphNode->Pins.Num(); ++PinIndex)
+	{
+		UEdGraphPin* CurPin = GraphNode->Pins[PinIndex];
+
+		if (CurPin->PinType.PinCategory == UISGraphSchema::PC_Input) continue;
+
+		if (!ensureMsgf(CurPin->GetOuter() == GraphNode
+			, TEXT("Graph node ('%s' - %s) has an invalid %s pin: '%s'; (with a bad %s outer: '%s'); skiping creation of a widget for this pin.")
+			, *GraphNode->GetNodeTitle(ENodeTitleType::ListView).ToString()
+			, *GraphNode->GetPathName()
+			, (CurPin->Direction == EEdGraphPinDirection::EGPD_Input) ? TEXT("input") : TEXT("output")
+			, CurPin->PinFriendlyName.IsEmpty() ? *CurPin->PinName.ToString() : *CurPin->PinFriendlyName.ToString()
+			, CurPin->GetOuter() ? *CurPin->GetOuter()->GetClass()->GetName() : TEXT("UNKNOWN")
+			, CurPin->GetOuter() ? *CurPin->GetOuter()->GetPathName() : TEXT("NULL")))
+		{
+			continue;
+		}
+
+		CreateStandardPinWidget(CurPin);
 	}
 }
 
@@ -298,84 +352,18 @@ private:
 };
 
 //------------------------------------------------------
-// SGraphPin_Add
+// SGraphPin_Input
 //------------------------------------------------------
 
-class SGraphPin_Add : public SGraphPin
+class SGraphPin_Input : public SGridPanel
 {
 public:
-	SLATE_BEGIN_ARGS(SGraphPin_Add) {}
+	SLATE_BEGIN_ARGS(SGraphPin_Input) {}
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
 
 protected:
-
-	TSharedRef<SWidget> OnGetAddButtonMenuContent();
-
-	TSharedPtr<SComboButton> AddButton;
-};
-
-void SGraphPin_Add::Construct(const FArguments& Args, UEdGraphPin* InPin)
-{
-	GraphPinObj = InPin;
-	check(GraphPinObj != NULL);
-
-	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
-	checkf(
-		Schema,
-		TEXT("Missing schema for pin: %s with outer: %s of type %s"),
-		*(GraphPinObj->GetName()),
-		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"),
-		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
-	);
-
-	// Create the pin icon widget
-	TSharedRef<SWidget> PinWidgetRef = SAssignNew(AddButton, SComboButton)
-		.HasDownArrow(false)
-		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-		.ForegroundColor(GetPinColor())
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.Cursor(EMouseCursor::Hand)
-		.ToolTipText(LOCTEXT("SGraphPin_Add_ToolTipText", "Click to add new pin"))
-		.OnGetMenuContent(this, &SGraphPin_Add::OnGetAddButtonMenuContent)
-		.ButtonContent()
-		[
-			SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
-		];
-
-	// Set up a hover for pins that is tinted the color of the pin.
-
-	SBorder::Construct(SBorder::FArguments().BorderImage(FAppStyle::GetBrush(NAME_NoBorder))[PinWidgetRef]);
-}
-
-TSharedRef<SWidget> SGraphPin_Add::OnGetAddButtonMenuContent()
-{
-	TSharedRef<SISParameterMenu_Pin> MenuWidget = SNew(SISParameterMenu_Pin).Node(GetPinObj()->GetOwningNode());
-
-	AddButton->SetMenuContentWidgetToFocus(MenuWidget->GetSearchBox());
-
-	return MenuWidget;
-}
-
-//------------------------------------------------------
-// SGraphPin_InputAction
-//------------------------------------------------------
-
-class SGraphPin_InputAction : public SGraphPin
-{
-public:
-	SLATE_BEGIN_ARGS(SGraphPin_InputAction) {}
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
-
-	virtual FSlateColor GetPinTextColor() const override { return FLinearColor::White; }
-
-protected:
-
-	virtual TSharedRef<SWidget> GetLabelWidget(const FName& InLabelStyle) override;
 
 	FReply OnClicked_RemovePin() const;
 
@@ -395,189 +383,143 @@ protected:
 
 	FSlateColor GetTriggerEventForegroundColor(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const;
 
-	TOptional<FSlateRenderTransform> GetTriggerEventRenderTransform_Started() const { return GetTriggerEventRenderTransform(ButtonStartedPtr, FString::FromInt(static_cast<int32>(ETriggerEvent::Started))); }
+	FSlateFontInfo GetTriggerEventFont_Started() const { return GetTriggerEventFont(ButtonStartedPtr, FString::FromInt(static_cast<int32>(ETriggerEvent::Started))); }
 
-	TOptional<FSlateRenderTransform> GetTriggerEventRenderTransform_Triggered() const { return GetTriggerEventRenderTransform(ButtonTriggeredPtr, FString::FromInt(static_cast<int32>(ETriggerEvent::Triggered))); }
+	FSlateFontInfo GetTriggerEventFont_Triggered() const { return GetTriggerEventFont(ButtonTriggeredPtr, FString::FromInt(static_cast<int32>(ETriggerEvent::Triggered))); }
 
-	TOptional<FSlateRenderTransform> GetTriggerEventRenderTransform_Completed() const { return GetTriggerEventRenderTransform(ButtonCompletedPtr, FString::FromInt(static_cast<int32>(ETriggerEvent::Completed))); }
+	FSlateFontInfo GetTriggerEventFont_Completed() const { return GetTriggerEventFont(ButtonCompletedPtr, FString::FromInt(static_cast<int32>(ETriggerEvent::Completed))); }
 
-	TOptional<FSlateRenderTransform> GetTriggerEventRenderTransform(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const;
+	FSlateFontInfo GetTriggerEventFont(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const;
+
+	void RequirePreciseMatchStateChanged(ECheckBoxState checkBoxState) const;
+
+	ECheckBoxState RequirePreciseMatch() const;
+
+	void SetWaitTimeValue(const float NewValue) const;
+
+	void SetWaitTimeValueCommited(const float NewValue, ETextCommit::Type CommitType) const { SetWaitTimeValue(NewValue); }
+
+	TOptional<float> GetWaitTimeValue() const;
 
 	TSharedPtr<SButton> ButtonStartedPtr;
 	TSharedPtr<SButton> ButtonTriggeredPtr;
 	TSharedPtr<SButton> ButtonCompletedPtr;
+
+	UEdGraphPin* PinObject;
 };
 
-void SGraphPin_InputAction::Construct(const FArguments& Args, UEdGraphPin* InPin)
+void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 {
-	SGraphPin::FArguments InArgs = SGraphPin::FArguments();
+	SGridPanel::Construct(SGridPanel::FArguments());
 
-	bUsePinColorForText = InArgs._UsePinColorForText;
-	this->SetCursor(EMouseCursor::Default);
+	PinObject = InPin;
 
-	SetVisibility(MakeAttributeSP(this, &SGraphPin_InputAction::GetPinVisiblity));
+	SetRowFill(0, 1);
+	SetRowFill(1, 1);
+	SetColumnFill(0, 1);
+	SetColumnFill(1, 1);
+	SetColumnFill(2, 0);
 
-	GraphPinObj = InPin;
-	check(GraphPinObj != NULL);
-
-	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
-	checkf(
-		Schema,
-		TEXT("Missing schema for pin: %s with outer: %s of type %s"),
-		*(GraphPinObj->GetName()),
-		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"),
-		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
-	);
-
-	// Create the pin indicator widget (used for watched values)
-	TSharedRef<SWidget> PinStatusIndicator =
-		SNew(SButton)
-		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-		.Visibility(this, &SGraphPin_InputAction::GetPinStatusIconVisibility)
-		.ContentPadding(0)
-		.OnClicked(this, &SGraphPin_InputAction::ClickedOnPinStatusIcon)
+	AddSlot(0, 0).RowSpan(2).VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2 * padding, padding)
 		[
-			SNew(SImage).Image(this, &SGraphPin_InputAction::GetPinStatusIcon)
+			SNew(STextBlock).Text(FText::FromName(InPin->PinName)).Font(pinFontInfo).ColorAndOpacity(FLinearColor::White).AutoWrapText(true)
 		];
 
-	TSharedRef<SWidget> LabelWidget = GetLabelWidget(InArgs._PinLabelStyle);
-
-	// Create the widget used for the pin body (status indicator, label, and value)
-	LabelAndValue =
-		SNew(SWrapBox)
-		.PreferredSize(150.f);
-
-	LabelAndValue->AddSlot().VAlign(VAlign_Center)
-		[
-			PinStatusIndicator
-		];
-
-	LabelAndValue->AddSlot().VAlign(VAlign_Center)
-		[
-			LabelWidget
-		];
-
-	// Set up a hover for pins that is tinted the color of the pin.
-
-	SBorder::Construct(SBorder::FArguments().BorderImage(FAppStyle::GetBrush(NAME_NoBorder))
+	AddSlot(1, 0).VAlign(VAlign_Center)
 		[
 			SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+
+			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, padding, 0, 0)
+			[
+				SAssignNew(ButtonStartedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+					.Cursor(EMouseCursor::Hand)
+					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_Started", "Started"))
+					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Started)
+					[
+						SNew(STextBlock).Text(FText::FromString("S"))
+							.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Started)
+							.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Started)
+					]
+			]
+
+			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, padding, 0, 0)
+			[
+				SAssignNew(ButtonTriggeredPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+					.Cursor(EMouseCursor::Hand)
+					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_Triggered", "Triggered"))
+					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Triggered)
+					[
+						SNew(STextBlock).Text(FText::FromString("T"))
+							.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Triggered)
+							.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Triggered)
+					]
+			]
+
+			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, padding, 0, 0)
+			[
+				SAssignNew(ButtonCompletedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+					.Cursor(EMouseCursor::Hand)
+					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_Completed", "Completed"))
+					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Completed)
+					[
+						SNew(STextBlock).Text(FText::FromString("C"))
+							.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Completed)
+							.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
+					]
+			]
+		];
+
+	AddSlot(1, 1).VAlign(VAlign_Center)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2 * padding, 0, 0, padding)
+			[
+				SNew(SCheckBox).Style(&checkBoxStyle)
+					.Cursor(EMouseCursor::Hand)
+					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_RequirePreciseMatch", "Require precise match"))
+					.OnCheckStateChanged(this, &SGraphPin_Input::RequirePreciseMatchStateChanged)
+					.IsChecked_Raw(this, &SGraphPin_Input::RequirePreciseMatch)
+			]
+
+			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, 0, 0, padding)
+			[
+				SNew(SNumericEntryBox<float>)
+					.Font(pinFontInfo)
+					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_WaitTime", "Wait for (sec)"))
+					.AllowSpin(true)
+					.MinValue(0)
+					.MaxValue(10)
+					.MinSliderValue(0)
+					.MaxSliderValue(10)
+					.Delta(0.01f)
+					.Value(this, &SGraphPin_Input::GetWaitTimeValue)
+					.OnValueChanged(this, &SGraphPin_Input::SetWaitTimeValue)
+					.OnValueCommitted(this, &SGraphPin_Input::SetWaitTimeValueCommited)
+			]
+		];
+
+	AddSlot(2, 0).RowSpan(2).VAlign(VAlign_Center).Padding(padding)
+		[
+			SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+				.ForegroundColor(FLinearColor::White)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Cursor(EMouseCursor::Hand)
+				.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_RemovePin", "Click to remove pin"))
+				.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_RemovePin)
 				[
-					SNew(SBorder)
-						.BorderImage(this, &SGraphPin_InputAction::GetPinBorder)
-						.BorderBackgroundColor(this, &SGraphPin_InputAction::GetHighlightColor)
-						[
-							SNew(SBorder)
-								.BorderImage(CachedImg_Pin_DiffOutline)
-								.BorderBackgroundColor(this, &SGraphPin_InputAction::GetPinDiffColor)
-								[
-									SNew(SLevelOfDetailBranchNode)
-										.UseLowDetailSlot(this, &SGraphPin_InputAction::UseLowDetailPinNames)
-										.LowDetail()
-										[
-											SNullWidget::NullWidget
-										]
-										.HighDetail()
-										[
-											LabelAndValue.ToSharedRef()
-										]
-								]
-						]
+					SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
 				]
-
-				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-				[
-					SNew(SLevelOfDetailBranchNode)
-						.UseLowDetailSlot(this, &SGraphPin_InputAction::UseLowDetailPinNames)
-						.LowDetail()
-						[
-							SNew(SButton)
-								.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-								.ForegroundColor(GetPinColor())
-								.Cursor(EMouseCursor::Hand)
-								.ToolTipText(LOCTEXT("SGraphPin_InputAction_TooltipText_RemovePin", "Click to remove pin"))
-								.OnClicked_Raw(this, &SGraphPin_InputAction::OnClicked_RemovePin)
-								[
-									SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
-								]
-						]
-						.HighDetail()
-						[
-							SNew(SWrapBox)
-
-								+ SWrapBox::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2)
-								[
-									SAssignNew(ButtonStartedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-										.Cursor(EMouseCursor::Hand)
-										.ToolTipText(LOCTEXT("SGraphPin_InputAction_TooltipText_Started", "Started"))
-										.OnClicked_Raw(this, &SGraphPin_InputAction::OnClicked_Started)
-										[
-											SNew(STextBlock).Text(FText::FromString("S")).Font(FAppStyle::Get().GetFontStyle("Font.Large.Bold"))
-												.RenderTransform_Raw(this, &SGraphPin_InputAction::GetTriggerEventRenderTransform_Started).RenderTransformPivot(FVector2D(0.5f, 0.5f))
-												.ColorAndOpacity_Raw(this, &SGraphPin_InputAction::GetTriggerEventForegroundColor_Started)
-										]
-								]
-								+ SWrapBox::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2)
-								[
-									SAssignNew(ButtonTriggeredPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-										.Cursor(EMouseCursor::Hand)
-										.ToolTipText(LOCTEXT("SGraphPin_InputAction_TooltipText_Trigger", "Triggered"))
-										.OnClicked_Raw(this, &SGraphPin_InputAction::OnClicked_Triggered)
-										[
-											SNew(STextBlock).Text(FText::FromString("T")).Font(FAppStyle::Get().GetFontStyle("Font.Large.Bold"))
-												.RenderTransform_Raw(this, &SGraphPin_InputAction::GetTriggerEventRenderTransform_Triggered).RenderTransformPivot(FVector2D(0.5f, 0.5f))
-												.ColorAndOpacity_Raw(this, &SGraphPin_InputAction::GetTriggerEventForegroundColor_Triggered)
-										]
-								]
-								+ SWrapBox::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2)
-								[
-									SAssignNew(ButtonCompletedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-										.Cursor(EMouseCursor::Hand)
-										.ToolTipText(LOCTEXT("SGraphPin_InputAction_TooltipText_Complete", "Completed"))
-										.OnClicked_Raw(this, &SGraphPin_InputAction::OnClicked_Completed)
-										[
-											SNew(STextBlock).Text(FText::FromString("C")).Font(FAppStyle::Get().GetFontStyle("Font.Large.Bold"))
-												.RenderTransform_Raw(this, &SGraphPin_InputAction::GetTriggerEventRenderTransform_Completed).RenderTransformPivot(FVector2D(0.5f, 0.5f))
-												.ColorAndOpacity_Raw(this, &SGraphPin_InputAction::GetTriggerEventForegroundColor_Completed)
-										]
-								]
-
-								+ SWrapBox::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2)
-								[
-									SNew(SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-										.ForegroundColor(GetPinColor())
-										.Cursor(EMouseCursor::Hand)
-										.ToolTipText(LOCTEXT("SGraphPin_InputAction_TooltipText_RemovePin", "Click to remove pin"))
-										.OnClicked_Raw(this, &SGraphPin_InputAction::OnClicked_RemovePin)
-										[
-											SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
-										]
-								]
-						]
-				]
-		]
-	);
+		];
 
 	SetToolTip(SNew(SToolTip_Dummy));
 }
 
-TSharedRef<SWidget> SGraphPin_InputAction::GetLabelWidget(const FName& InLabelStyle)
+FReply SGraphPin_Input::OnClicked_RemovePin() const
 {
-	TSharedRef<STextBlock> labelWidget = SNew(STextBlock)
-		.Text(this, &SGraphPin_InputAction::GetPinLabel)
-		.TextStyle(FAppStyle::Get(), InLabelStyle)
-		.Visibility(this, &SGraphPin_InputAction::GetPinLabelVisibility)
-		.ColorAndOpacity(this, &SGraphPin_InputAction::GetPinTextColor);
-
-	labelWidget->SetFont(FAppStyle::Get().GetFontStyle("SmallFont"));
-
-	return labelWidget;
-}
-
-FReply SGraphPin_InputAction::OnClicked_RemovePin() const
-{
-	if (UEdGraphPin* FromPin = GetPinObj())
+	if (UEdGraphPin* FromPin = PinObject)
 	{
 		UEdGraphNode* FromNode = FromPin->GetOwningNode();
 
@@ -617,121 +559,323 @@ FReply SGraphPin_InputAction::OnClicked_RemovePin() const
 	return FReply::Handled();
 }
 
-FReply SGraphPin_InputAction::OnClicked_Started() const
+FReply SGraphPin_Input::OnClicked_Started() const
 {
 	SetTriggerEvent(ETriggerEvent::Started);
 	return FReply::Handled();
 }
 
-FReply SGraphPin_InputAction::OnClicked_Triggered() const
+FReply SGraphPin_Input::OnClicked_Triggered() const
 {
 	SetTriggerEvent(ETriggerEvent::Triggered);
 	return FReply::Handled();
 }
 
-FReply SGraphPin_InputAction::OnClicked_Completed() const
+FReply SGraphPin_Input::OnClicked_Completed() const
 {
 	SetTriggerEvent(ETriggerEvent::Completed);
 	return FReply::Handled();
 }
 
-void SGraphPin_InputAction::SetTriggerEvent(const ETriggerEvent triggerEvent) const
+void SGraphPin_Input::SetTriggerEvent(const ETriggerEvent triggerEvent) const
 {
-	if (UEdGraphPin* PinObject = GetPinObj())
+	if (PinObject)
 	{
-		const ETriggerEvent currentTriggerEvent = static_cast<ETriggerEvent>(FCString::Atoi(*(PinObject->DefaultValue.IsEmpty() ? "0" : PinObject->DefaultValue)));
-
-		if (currentTriggerEvent != triggerEvent)
+		if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(PinObject->GetOwningNode()))
 		{
-			if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(PinObject->GetOwningNode()))
-			{
-				const FScopedTransaction Transaction(LOCTEXT("SGraphPin_InputAction_SetTriggerEvent", "Set Trigger Event"));
+			const FScopedTransaction Transaction(LOCTEXT("SGraphPin_Input_SetTriggerEvent", "Set Trigger Event"));
 
-				PinObject->Modify();
-				PinObject->DefaultValue = FString::FromInt(static_cast<int32>(triggerEvent));
-			}
+			PinObject->Modify();
+
+			const ETriggerEvent currentTriggerEvent = PinObject->DefaultValue.IsEmpty() ? ETriggerEvent::None : static_cast<ETriggerEvent>(FCString::Atoi(*PinObject->DefaultValue));
+
+			PinObject->DefaultValue = FString::FromInt(static_cast<int32>(currentTriggerEvent != triggerEvent ? triggerEvent : ETriggerEvent::None));
 		}
 	}
 }
 
-FSlateColor SGraphPin_InputAction::GetTriggerEventForegroundColor(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const
+FSlateColor SGraphPin_Input::GetTriggerEventForegroundColor(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const
 {
-	return GetPinObj()->DefaultValue == triggerEventString ? FLinearColor::Green : GetPinColor();
+	const bool isHovered = buttonPtr->IsHovered();
+
+	FLinearColor color = isHovered ? FLinearColor::White : FLinearColor(1, 1, 1, 0.2f);
+
+	if (PinObject && PinObject->DefaultValue == triggerEventString)
+	{
+		color = FLinearColor::Green;
+	}
+
+	return color;
 }
 
-TOptional<FSlateRenderTransform> SGraphPin_InputAction::GetTriggerEventRenderTransform(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const
+FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const
 {
-	static FSlateRenderTransform identity(FScale2f(1.f, 1.f));
-	static FSlateRenderTransform decreased(FScale2f(.5f, .5f));
-	return buttonPtr->IsHovered() || (GetPinObj()->DefaultValue == triggerEventString) ? identity : decreased;
+	if (PinObject)
+	{
+		return PinObject->DefaultValue == triggerEventString ? inputEventFontInfo_Selected : inputEventFontInfo;
+	}
+
+	return inputEventFontInfo;
+}
+
+void SGraphPin_Input::RequirePreciseMatchStateChanged(ECheckBoxState checkBoxState) const
+{
+	if (PinObject)
+	{
+		PinObject->DefaultObject = (checkBoxState == ECheckBoxState::Checked ? PinObject->GetOwningNode() : nullptr);
+	}
+}
+
+ECheckBoxState SGraphPin_Input::RequirePreciseMatch() const
+{
+	if (PinObject)
+	{
+		if (PinObject->DefaultObject == PinObject->GetOwningNode())
+		{
+			return ECheckBoxState::Checked;
+		}
+	}
+
+	return ECheckBoxState::Unchecked;
+}
+
+void SGraphPin_Input::SetWaitTimeValue(const float NewValue) const
+{
+	if (PinObject)
+	{
+		const float PrevValue = PinObject->DefaultTextValue.IsEmpty() ? 0.f : FCString::Atof(*PinObject->DefaultTextValue.ToString());
+		if (NewValue != PrevValue)
+		{
+			//FNumberFormattingOptions NumberFormatOptions;
+			//NumberFormatOptions.AlwaysSign = 1;
+			//NumberFormatOptions.UseGrouping = 0;
+			//NumberFormatOptions.MinimumIntegralDigits = 1;
+			//NumberFormatOptions.MaximumIntegralDigits = 2;
+			//NumberFormatOptions.MinimumFractionalDigits = 3;
+			//NumberFormatOptions.MaximumFractionalDigits = 3;
+
+			//auto tt = FText::AsNumber(NewValue, &NumberFormatOptions);
+			//PinObject->DefaultTextValue = FText::AsNumber(NewValue, &NumberFormatOptions);
+
+			PinObject->DefaultTextValue = FText::FromString(FString::SanitizeFloat(NewValue, 2));
+		}
+	}
+}
+
+TOptional<float> SGraphPin_Input::GetWaitTimeValue() const
+{
+	if (PinObject)
+	{
+		return FMath::RoundHalfToEven(PinObject->DefaultTextValue.IsEmpty() ? 0.f : FCString::Atof(*PinObject->DefaultTextValue.ToString()));
+	}
+
+	return 0.f;
 }
 
 //------------------------------------------------------
-// SGraphPin_HubAdd
+// SISGraphNode_Input
 //------------------------------------------------------
 
-class SGraphPin_HubAdd : public SGraphPin
+class SISGraphNode_Input : public SISGraphNode_Dynamic
 {
-public:
-	SLATE_BEGIN_ARGS(SGraphPin_HubAdd) {}
-	SLATE_END_ARGS()
+protected:
 
-	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
+	virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) override;
+
+	TSharedRef<SWidget> OnGetAddButtonMenuContent();
+
+	void OverrideResetTimeStateChanged(ECheckBoxState checkBoxState) const;
+
+	bool HasOverrideResetTime() const;
+
+	ECheckBoxState OverrideResetTime() const;
+
+	void SetResetTimeValue(const float NewValue) const;
+
+	void SetResetTimeValueCommited(const float NewValue, ETextCommit::Type CommitType) const { SetResetTimeValue(NewValue); }
+
+	TOptional<float> GetResetTimeValue() const;
 
 protected:
 
-	FReply OnClicked_AddPin();
+	TSharedPtr<SComboButton> AddButton;
 };
 
-void SGraphPin_HubAdd::Construct(const FArguments& Args, UEdGraphPin* InPin)
+void SISGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
 {
-	GraphPinObj = InPin;
-	check(GraphPinObj != NULL);
+	TSharedPtr<SVerticalBox> innerVerticalBox = SNew(SVerticalBox);
 
-	const UEdGraphSchema* Schema = GraphPinObj->GetSchema();
-	checkf(
-		Schema, 
-		TEXT("Missing schema for pin: %s with outer: %s of type %s"), 
-		*(GraphPinObj->GetName()),
-		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetName()) : TEXT("NULL OUTER"), 
-		GraphPinObj->GetOuter() ? *(GraphPinObj->GetOuter()->GetClass()->GetName()) : TEXT("NULL OUTER")
-	);
+	MainBox->AddSlot().AutoHeight()[innerVerticalBox.ToSharedRef()];
 
-	// Create the pin icon widget
-	TSharedRef<SWidget> PinWidgetRef = SNew(SButton)
-		.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-		.ForegroundColor(GetPinColor())
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.Cursor(EMouseCursor::Hand)
-		.ToolTipText(LOCTEXT("SGraphPin_HubAdd_ToolTipText", "Click to add new pin"))
-		.OnClicked_Raw(this, &SGraphPin_HubAdd::OnClicked_AddPin)
+	// Create Pin widgets for each of the pins.
+	for (int32 PinIndex = 0; PinIndex < GraphNode->Pins.Num(); ++PinIndex)
+	{
+		UEdGraphPin* CurPin = GraphNode->Pins[PinIndex];
+
+		if (CurPin->PinType.PinCategory == UISGraphSchema::PC_Input)
+		{
+			innerVerticalBox->AddSlot().AutoHeight()[SNew(SGraphPin_Input, CurPin)];
+		}
+	}
+
+	MainBox->AddSlot().AutoHeight()
 		[
-			SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
-		];
+			SNew(SGridPanel).FillColumn(0, 0).FillColumn(1, 1).FillColumn(2, 0)
 
-	// Set up a hover for pins that is tinted the color of the pin.
-	
-	SBorder::Construct(SBorder::FArguments().BorderImage(FAppStyle::GetBrush(NAME_NoBorder))[PinWidgetRef]);
+				+ SGridPanel::Slot(0, 0).Padding(2 * padding, padding)
+				[
+					SNew(SCheckBox).Style(&checkBoxStyle)
+						.Cursor(EMouseCursor::Hand)
+						.ToolTipText(LOCTEXT("SISGraphNode_Input_TooltipText_OverrideResetTime", "Override Reset Time"))
+						.OnCheckStateChanged(this, &SISGraphNode_Input::OverrideResetTimeStateChanged)
+						.IsChecked_Raw(this, &SISGraphNode_Input::OverrideResetTime)
+				]
+
+				+ SGridPanel::Slot(1, 0).Padding(padding)
+				[
+					SNew(SBox).MinDesiredWidth(150)
+						[
+							SNew(SNumericEntryBox<float>)
+								.IsEnabled_Raw(this, &SISGraphNode_Input::HasOverrideResetTime)
+								.Font(pinFontInfo)
+								.ToolTipText(LOCTEXT("SISGraphNode_Input_TooltipText_ResetTime", "Reset Time (sec)"))
+								.AllowSpin(true)
+								.MinValue(0)
+								.MaxValue(10)
+								.MinSliderValue(0)
+								.MaxSliderValue(10)
+								.Delta(0.0f)
+								.Value(this, &SISGraphNode_Input::GetResetTimeValue)
+								.OnValueChanged(this, &SISGraphNode_Input::SetResetTimeValue)
+								.OnValueCommitted(this, &SISGraphNode_Input::SetResetTimeValueCommited)
+						]
+				]
+
+				+ SGridPanel::Slot(2, 0).Padding(padding)
+				[
+					SAssignNew(AddButton, SComboButton)
+						.HasDownArrow(false)
+						.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+						.ForegroundColor(FLinearColor::White)
+						.HAlign(HAlign_Center)
+						.VAlign(VAlign_Center)
+						.Cursor(EMouseCursor::Hand)
+						.ToolTipText(LOCTEXT("SISGraphNode_Input_Add_ToolTipText", "Click to add new pin"))
+						.OnGetMenuContent(this, &SISGraphNode_Input::OnGetAddButtonMenuContent)
+						.ButtonContent()
+						[
+							SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
+						]
+				]
+		];
 }
 
-FReply SGraphPin_HubAdd::OnClicked_AddPin()
+TSharedRef<SWidget> SISGraphNode_Input::OnGetAddButtonMenuContent()
 {
-	if (UEdGraphPin* FromPin = GetPinObj())
+	TSharedRef<SISParameterMenu_Pin> MenuWidget = SNew(SISParameterMenu_Pin).Node(GraphNode);
+
+	AddButton->SetMenuContentWidgetToFocus(MenuWidget->GetSearchBox());
+
+	return MenuWidget;
+}
+
+void SISGraphNode_Input::OverrideResetTimeStateChanged(ECheckBoxState checkBoxState) const
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
 	{
-		const FScopedTransaction Transaction(LOCTEXT("K2_AddPin", "Add Pin"));
-
-		int32 outputPinsCount = 0;
-		for (UEdGraphPin* pin : FromPin->GetOwningNode()->Pins)
-		{
-			if (pin->Direction == EGPD_Output) outputPinsCount++;
-		}
-
-		UEdGraphNode::FCreatePinParams params;
-		params.Index = outputPinsCount;
-
-		AddPin(FromPin->GetOwningNode(), UISGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), params, nullptr);
+		dynamicGraphNode->bOverrideResetTime = checkBoxState == ECheckBoxState::Checked;
 	}
+}
+
+bool SISGraphNode_Input::HasOverrideResetTime() const
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
+	{
+		return dynamicGraphNode->bOverrideResetTime;
+	}
+
+	return false;
+}
+
+ECheckBoxState SISGraphNode_Input::OverrideResetTime() const
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
+	{
+		if (dynamicGraphNode->bOverrideResetTime)
+		{
+			return ECheckBoxState::Checked;
+		}
+	}
+
+	return ECheckBoxState::Unchecked;
+}
+
+void SISGraphNode_Input::SetResetTimeValue(const float NewValue) const
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
+	{
+		if (dynamicGraphNode->ResetTime != NewValue)
+		{
+			dynamicGraphNode->ResetTime = NewValue;
+		}
+	}
+}
+
+TOptional<float> SISGraphNode_Input::GetResetTimeValue() const
+{
+	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(GraphNode))
+	{
+		return dynamicGraphNode->ResetTime;
+	}
+
+	return 0;
+}
+
+//------------------------------------------------------
+// SISGraphNode_Hub
+//------------------------------------------------------
+
+class SISGraphNode_Hub : public SISGraphNode_Dynamic
+{
+protected:
+
+	virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) override;
+
+	FReply OnClickedAddButton();
+};
+
+void SISGraphNode_Hub::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
+{
+	MainBox->AddSlot().HAlign(HAlign_Right)
+		[
+			SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+				.ForegroundColor(FLinearColor::White)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Cursor(EMouseCursor::Hand)
+				.ToolTipText(LOCTEXT("SISGraphNode_Hub_ToolTipText", "Click to add new pin"))
+				.OnClicked_Raw(this, &SISGraphNode_Hub::OnClickedAddButton)
+				[
+					SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
+				]
+		];
+}
+
+FReply SISGraphNode_Hub::OnClickedAddButton()
+{
+	const FScopedTransaction Transaction(LOCTEXT("SISGraphNode_Hub_AddPin", "Add Pin"));
+
+	int32 outputPinsCount = 1;
+	for (UEdGraphPin* pin : GraphNode->Pins)
+	{
+		if (pin->Direction == EGPD_Output) outputPinsCount++;
+	}
+
+	UEdGraphNode::FCreatePinParams params;
+	params.Index = outputPinsCount;
+
+	AddPinToDynamicNode(GraphNode, UISGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), params, nullptr);
 
 	return FReply::Handled();
 }
@@ -940,9 +1084,13 @@ FReply SGraphPin_HubExec::OnClicked_RemovePin() const
 
 TSharedPtr<SGraphNode> FISGraphNodeFactory::CreateNode(UEdGraphNode* InNode) const
 {
-	if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(InNode))
+	if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(InNode))
 	{
-		return SNew(SISGraphNode_Dynamic, dynamicGraphNode);
+		return SNew(SISGraphNode_Input, inputGraphNode);
+	}
+	else if (UISGraphNode_Hub* hubGraphNode = Cast<UISGraphNode_Hub>(InNode))
+	{
+		return SNew(SISGraphNode_Hub, hubGraphNode);
 	}
 
 	return nullptr;
@@ -968,21 +1116,6 @@ TSharedPtr<SGraphPin> FISGraphPinFactory::CreatePin(UEdGraphPin* InPin) const
 				sGraphPin->SetToolTip(SNew(SToolTip_Dummy));
 				return sGraphPin;
 			}
-		}
-		if (InPin->PinType.PinCategory == UISGraphSchema::PC_Add)
-		{
-			if (InPin->GetOwningNode() && InPin->GetOwningNode()->IsA<UISGraphNode_Hub>())
-			{
-				return SNew(SGraphPin_HubAdd, InPin);
-			}
-			else
-			{
-				return SNew(SGraphPin_Add, InPin);
-			}
-		}
-		else if (InPin->PinType.PinCategory == UISGraphSchema::PC_InputAction)
-		{
-			return SNew(SGraphPin_InputAction, InPin);
 		}
 
 		return FGraphPanelPinFactory::CreatePin(InPin);
@@ -1152,7 +1285,7 @@ UEdGraphNode* FISGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentG
 		UEdGraphNode::FCreatePinParams params;
 		params.Index = CorrectedInputIndex + execPinCount;
 
-		AddPin(FromPin->GetOwningNode(), UISGraphSchema::PC_InputAction, InputAction->GetFName(), params, InputAction);
+		AddPinToDynamicNode(FromPin->GetOwningNode(), UISGraphSchema::PC_Input, InputAction->GetFName(), params, InputAction);
 	}
 
 	return ResultNode;
@@ -1172,9 +1305,7 @@ TSharedPtr<T> AddNewActionAs(FGraphContextMenuBuilder& ContextMenuBuilder, const
 
 const FName UISGraphSchema::PC_Exec("UISGraphSchema_PC_Exec");
 
-const FName UISGraphSchema::PC_Add("UISGraphSchema_PC_Add");
-
-const FName UISGraphSchema::PC_InputAction("UISGraphSchema_PC_InputAction");
+const FName UISGraphSchema::PC_Input("UISGraphSchema_PC_Input");
 
 void UISGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
 {
@@ -1246,6 +1377,16 @@ FText UISGraphNode_Entry::GetTooltipText() const
 }
 
 //------------------------------------------------------
+// UISGraphNode_Dynamic
+//------------------------------------------------------
+
+UISGraphNode_Dynamic::UISGraphNode_Dynamic(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+{
+	ResetTime = 0;
+	bOverrideResetTime = 0;
+}
+
+//------------------------------------------------------
 // UISGraphNode_Input
 //------------------------------------------------------
 
@@ -1253,8 +1394,6 @@ void UISGraphNode_Input::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UISGraphSchema::PC_Exec, NAME_None);
 	CreatePin(EGPD_Output, UISGraphSchema::PC_Exec, NAME_None);
-
-	CreatePin(EGPD_Output, UISGraphSchema::PC_Add, NAME_None);
 }
 
 FText UISGraphNode_Input::GetNodeTitle(ENodeTitleType::Type TitleType) const
@@ -1276,10 +1415,7 @@ FText UISGraphNode_Input::GetTooltipText() const
 void UISGraphNode_Hub::AllocateDefaultPins()
 {
 	CreatePin(EGPD_Input, UISGraphSchema::PC_Exec, NAME_None);
-
 	CreatePin(EGPD_Output, UISGraphSchema::PC_Exec, "1");
-	CreatePin(EGPD_Output, UISGraphSchema::PC_Add, NAME_None);
-
 }
 
 FText UISGraphNode_Hub::GetNodeTitle(ENodeTitleType::Type TitleType) const

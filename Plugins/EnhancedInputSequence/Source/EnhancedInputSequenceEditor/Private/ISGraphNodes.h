@@ -39,13 +39,19 @@ public:
 UCLASS()
 class UISGraphNode_Dynamic : public UEdGraphNode
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 public:
 
 	DECLARE_DELEGATE(FInvalidateWidgetEvent);
 
 	FInvalidateWidgetEvent OnUpdateGraphNode;
+
+	UPROPERTY()
+	float ResetTime;
+
+	UPROPERTY()
+	uint8 bOverrideResetTime : 1;
 };
 
 //------------------------------------------------------
