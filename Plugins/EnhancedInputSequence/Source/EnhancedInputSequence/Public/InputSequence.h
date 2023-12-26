@@ -2,19 +2,38 @@
 
 #pragma once
 
-#include "UObject/NoExportTypes.h"
+#include "InputTriggers.h"
 #include "InputSequence.generated.h"
 
 class UEdGraph;
 class UInputAction;
 
-enum class ETriggerState : uint8;
-
 enum class EConsumeInputResponse : uint8
 {
 	NONE,
 	RESET,
-	PASS
+	PASSED
+};
+
+namespace EFlags
+{
+	const uint8 NONE = 0;
+}
+
+namespace EFlags_State
+{
+	const uint8 OVERRIDE_HAS_RESET_TIME = 1;
+	const uint8 HAS_RESET_TIME = 2;
+
+	const uint8 IS_ENTRY_STATE = 64;
+	const uint8 IS_RESET_STATE = 128;
+};
+
+namespace EFlags_InputActionInfo
+{
+	const uint8 REQUIRE_PRECISE_MATCH = 1;
+
+	const uint8 PASSED = 128;
 };
 
 //------------------------------------------------------
@@ -28,7 +47,7 @@ struct ENHANCEDINPUTSEQUENCE_API FISResetSource
 
 public:
 
-	FISResetSource() :StateGuid(FGuid()), bResetAsset(0), SourceObject(nullptr), SourceContext("") {}
+	FISResetSource() :StateGuid(FGuid()), bResetAsset(0), RequestObject(nullptr), RequestContext("") {}
 
 	/* Request State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
@@ -40,11 +59,11 @@ public:
 
 	/* Request State Source Object or external Source Object */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
-	TObjectPtr<UObject> SourceObject;
+	TObjectPtr<UObject> RequestObject;
 
 	/* Request State Source Context or external Source Context */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
-	FString SourceContext;
+	FString RequestContext;
 };
 
 //------------------------------------------------------
@@ -58,7 +77,7 @@ struct ENHANCEDINPUTSEQUENCE_API FISEventCall
 
 public:
 
-	FISEventCall() :Event(nullptr), StateGuid(FGuid()), SourceObject(nullptr), SourceContext("") {}
+	FISEventCall() :Event(nullptr), StateGuid(FGuid()), StateObject(nullptr), StateContext("") {}
 
 	/* Input Sequence Event for this Event Call */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
@@ -70,11 +89,11 @@ public:
 
 	/* Owning State Source Object for this Event Call */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
-	TObjectPtr<UObject> SourceObject;
+	TObjectPtr<UObject> StateObject;
 
 	/* Owning State Source Context for this Event Call */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
-	FString SourceContext;
+	FString StateContext;
 };
 
 //------------------------------------------------------
@@ -89,9 +108,11 @@ class ENHANCEDINPUTSEQUENCE_API UISEvent : public UObject
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, Category = "Input Sequence Event")
-	void Execute(UObject* callingObject, const FString& callingContext, const FGuid& stateGuid, UObject* stateObject, const FString& stateContext, const TArray<FISResetSource>& resetSources);
+	void Execute(const FGuid& stateGuid, UObject* stateObject, const FString& stateContext, const TArray<FISResetSource>& resetSources);
 
-	virtual void Execute_Implementation(UObject* callingObject, const FString& callingContext, const FGuid& stateGuid, UObject* stateObject, const FString& stateContext, const TArray<FISResetSource>& resetSources) {}
+	virtual void Execute_Implementation(const FGuid& stateGuid, UObject* stateObject, const FString& stateContext, const TArray<FISResetSource>& resetSources) {}
+
+	virtual UWorld* GetWorld() const override;
 };
 
 //------------------------------------------------------
@@ -110,6 +131,37 @@ public:
 };
 
 //------------------------------------------------------
+// FISStateInputCheck
+//------------------------------------------------------
+
+USTRUCT()
+struct ENHANCEDINPUTSEQUENCE_API FISInputActionInfo
+{
+	GENERATED_USTRUCT_BODY()
+
+public:
+
+	FISInputActionInfo()
+	{
+		TriggerEvent = ETriggerEvent::None;
+		InputActionInfoFlags = EFlags::NONE;
+		WaitTime = 0;
+		WaitTimeLeft = 0;
+	}
+
+	UPROPERTY()
+	ETriggerEvent TriggerEvent;
+
+	UPROPERTY()
+	uint8 InputActionInfoFlags;
+
+	UPROPERTY()
+	float WaitTime;
+
+	float WaitTimeLeft;
+};
+
+//------------------------------------------------------
 // FISState
 //------------------------------------------------------
 
@@ -120,11 +172,9 @@ struct ENHANCEDINPUTSEQUENCE_API FISState
 
 public:
 
-	FISState() { Reset(); }
+	FISState(uint32 typeHash = INDEX_NONE) { Reset(); }
 
 	bool operator==(const FISState& state) const { return state.StateGuid == StateGuid; }
-
-	bool IsEmpty() const { return ActionStateData.IsEmpty(); }
 
 	void Reset();
 
@@ -132,9 +182,7 @@ public:
 	FGuid StateGuid;
 
 	UPROPERTY()
-	TMap<TObjectPtr<const UInputAction>, ETriggerState> ActionStateData;
-	UPROPERTY()
-	TMap<TObjectPtr<const UInputAction>, float> ActionPassData;
+	TMap<FSoftObjectPath, FISInputActionInfo> InputActionInfos;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UISEvent>> EnterEvents;
@@ -149,25 +197,16 @@ public:
 	FString StateContext;
 
 	UPROPERTY()
-	int32 DepthIndex;
-	UPROPERTY()
-	FGuid ParentState;
-
-	UPROPERTY()
-	uint8 bOverrideRequirePreciseMatch : 1;
-	UPROPERTY()
-	uint8 bRequirePreciseMatch : 1;
-
-	UPROPERTY()
-	uint8 bOverrideHasResetTime : 1;
-	UPROPERTY()
-	uint8 bHasResetTime : 1;
-
+	uint8 StateFlags;
 	UPROPERTY()
 	float ResetTime;
 
+	float ResetTimeLeft;
+
 	UPROPERTY()
-	uint8 bIsResetState : 1;
+	int32 DepthIndex;
+	UPROPERTY()
+	FGuid ParentState;
 };
 
 int32 GetTypeHash(const FISState& state) { return GetTypeHash(state.StateGuid); }
@@ -188,13 +227,36 @@ public:
 	UPROPERTY()
 	UEdGraph* EdGraph;
 
+	TSet<FGuid>& GetEntryStates() { return EntryStates; }
+
+	TSet<FISState>& GetStates() { return States; }
+
+	TMap<FGuid, FISStateCollection>& GetTransitions() { return Transitions; }
+
+	bool GetRequirePreciseMatchDefaultValue() const { return bRequirePreciseMatchDefaultValue; }
+
 #endif
 
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<TObjectPtr<UInputAction>, ETriggerState>& actionStateData, TArray<FISEventCall>& outEventCalls, TArray<FISResetSource>& outResetSources);
+	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, TArray<FISEventCall>& outEventCalls, TArray<FISResetSource>& outResetSources);
 
+	/**
+	* Sets World Context for Flow
+	*
+	* @param worldContextObject		World Context to set
+	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void RequestReset(UObject* sourceObject, const FString& sourceContext);
+	void RequestReset(UObject* requestObject, const FString& requestContext);
+
+	/**
+	* Sets World Context for Flow
+	*
+	* @param worldContextObject		World Context to set
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
+	void SetWorldContext(UObject* worldContextObject) { WorldPtr = worldContextObject ? worldContextObject->GetWorld() : nullptr; }
+
+	virtual UWorld* GetWorld() const override { return WorldPtr.Get(); }
 
 protected:
 
@@ -212,7 +274,7 @@ protected:
 
 	void EnterState(FISState* state, TArray<FISEventCall>& outEventCalls);
 
-	EConsumeInputResponse OnInput(const TMap<TObjectPtr<UInputAction>, ETriggerState>& actionStateData, FISState* state);
+	EConsumeInputResponse OnInput(const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, FISState* state);
 
 	EConsumeInputResponse OnTick(const float deltaTime, FISState* state);
 
@@ -224,9 +286,10 @@ protected:
 
 	mutable FCriticalSection resetSourcesCS;
 
-	TSet<FGuid> EntryStates;
-
 	TSet<FGuid> ActiveStates;
+
+	UPROPERTY()
+	TSet<FGuid> EntryStates;
 
 	UPROPERTY()
 	TSet<FISState> States;
@@ -239,7 +302,7 @@ protected:
 
 	/* If true, any mismatched input will reset asset to initial state */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence")
-	uint8 bRequirePreciseMatch : 1;
+	uint8 bRequirePreciseMatchDefaultValue : 1;
 
 	/* If true, asset will be reset if no any successful steps are made during some time interval */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (InlineEditConditionToggle))
@@ -256,4 +319,6 @@ protected:
 	/* If true, active states will continue to tick even if Game is paused (Input Sequence is ticking by OnInput method call) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence")
 	uint8 bTickWhenGamePaused : 1;
+
+	TWeakObjectPtr<UWorld> WorldPtr;
 };

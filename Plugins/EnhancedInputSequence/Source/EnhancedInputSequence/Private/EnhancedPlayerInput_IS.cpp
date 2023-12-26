@@ -7,20 +7,25 @@ void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& 
 {
 	Super::ProcessInputStack(InputComponentStack, DeltaTime, bGamePaused);
 
-	//////TMap<TObjectPtr<const UInputAction>, ETriggerState> actionStateData;
+	TMap<FSoftObjectPath, ETriggerEvent> enhancedActionInputStack;
 
-	//////for (TPair<TObjectPtr<const UInputAction>, FInputActionInstance>& ActionPair : ActionInstanceData)
-	//////{
-	//////	FInputActionInstance& ActionData = ActionPair.Value;
+	for (const FEnhancedActionKeyMapping& enhancedActionMapping : GetEnhancedActionMappings())
+	{
+		const FSoftObjectPath inputActionPath = FSoftObjectPath(enhancedActionMapping.Action);
+		const FInputActionInstance* inputActionInstance = FindActionInstanceData(enhancedActionMapping.Action);
+		enhancedActionInputStack.Add(inputActionPath, inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
+	}
 
-	//////	if (ActionData.TriggerEvent != ETriggerEvent::None)
-	//////	{
-	//////		actionStateData.Add(ActionPair.Key, ActionData.TriggerEvent);
-	//////	}
-	//////}
+	TArray<FISEventCall> eventCalls;
+	TArray<FISResetSource> resetSources;
 
-	//////for (const TObjectPtr<UInputSequence>& inputSequence : InputSequences)
-	//////{
-	//////	inputSequence->OnInput(DeltaTime, bGamePaused, actionStateData);
-	//////}
+	for (UInputSequence* inputSequence : InputSequences)
+	{
+		inputSequence->OnInput(DeltaTime, bGamePaused, enhancedActionInputStack, eventCalls, resetSources);
+	}
+
+	for (const FISEventCall& eventCall : eventCalls)
+	{
+		eventCall.Event->Execute(eventCall.StateGuid, eventCall.StateObject, eventCall.StateContext, resetSources);
+	}
 }

@@ -20,6 +20,8 @@ public:
 
 	void SetInputSequence(UInputSequence* inputSequence) { InputSequence = inputSequence; }
 
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
+
 protected:
 
 	UPROPERTY()

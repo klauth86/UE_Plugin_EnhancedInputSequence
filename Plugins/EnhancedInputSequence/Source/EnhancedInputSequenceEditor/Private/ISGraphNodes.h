@@ -6,6 +6,7 @@
 #include "ISGraphNodes.generated.h"
 
 class UInputAction;
+class UISEvent;
 enum class ETriggerEvent :uint8;
 
 //------------------------------------------------------
@@ -39,19 +40,13 @@ public:
 UCLASS()
 class UISGraphNode_Dynamic : public UEdGraphNode
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 
 public:
 
 	DECLARE_DELEGATE(FInvalidateWidgetEvent);
 
 	FInvalidateWidgetEvent OnUpdateGraphNode;
-
-	UPROPERTY()
-	float ResetTime;
-
-	UPROPERTY()
-	uint8 bOverrideResetTime : 1;
 };
 
 //------------------------------------------------------
@@ -61,7 +56,7 @@ public:
 UCLASS()
 class UISGraphNode_Input : public UISGraphNode_Dynamic
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 public:
 
@@ -72,6 +67,24 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	virtual FText GetTooltipText() const override;
+
+	UPROPERTY(EditAnywhere, Category="Events")
+	TArray<TObjectPtr<UISEvent>> EnterEvents;
+	UPROPERTY(EditAnywhere, Category = "Events")
+	TArray<TObjectPtr<UISEvent>> PassEvents;
+	UPROPERTY(EditAnywhere, Category = "Events")
+	TArray<TObjectPtr<UISEvent>> ResetEvents;
+
+	UPROPERTY(EditAnywhere, Category = "Context")
+	TObjectPtr<UObject> StateObject;
+	UPROPERTY(EditAnywhere, Category = "Context")
+	FString StateContext;
+
+	UPROPERTY()
+	float ResetTime;
+
+	UPROPERTY()
+	uint8 bOverrideResetTime : 1;
 };
 
 //------------------------------------------------------

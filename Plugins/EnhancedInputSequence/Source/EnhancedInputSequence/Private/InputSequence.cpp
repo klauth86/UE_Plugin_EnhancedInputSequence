@@ -3,19 +3,37 @@
 #include "InputSequence.h"
 
 //------------------------------------------------------
+// UISEvent
+//------------------------------------------------------
+
+UWorld* UISEvent::GetWorld() const
+{
+	if (UInputSequence* inputSequence = GetTypedOuter<UInputSequence>())
+	{
+		return inputSequence->GetWorld();
+	}
+
+	return nullptr;
+}
+
+//------------------------------------------------------
 // FISState
 //------------------------------------------------------
 
 void FISState::Reset()
 {
-
+	for (TPair<FSoftObjectPath, FISInputActionInfo>& InputActionInfo : InputActionInfos)
+	{
+		InputActionInfo.Value.InputActionInfoFlags &= ~EFlags_InputActionInfo::PASSED;
+		InputActionInfo.Value.WaitTimeLeft = InputActionInfo.Value.WaitTime;
+	}
 }
 
 //------------------------------------------------------
 // UInputSequence
 //------------------------------------------------------
 
-void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, const TMap<TObjectPtr<UInputAction>, ETriggerState>& actionStateData, TArray<FISEventCall>& outEventCalls, TArray<FISResetSource>& outResetSources)
+void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, TArray<FISEventCall>& outEventCalls, TArray<FISResetSource>& outResetSources)
 {
 	if (ActiveStates.IsEmpty())
 	{
@@ -29,7 +47,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 		FISState key;
 		if (FISState* state = States.FindByHash(GetTypeHash(stateGuid), key))
 		{
-			if (state->bIsResetState)
+			if ((state->StateFlags & EFlags_State::IS_RESET_STATE) != EFlags::NONE)
 			{
 				RequestReset(stateGuid, true);
 			}
@@ -43,7 +61,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 					{
 						RequestReset(stateGuid, false);
 					}
-					else if (consumeInputResponse == EConsumeInputResponse::PASS)
+					else if (consumeInputResponse == EConsumeInputResponse::PASSED)
 					{
 						MakeTransition(stateGuid, GetTransitions(stateGuid), outEventCalls);
 					}
@@ -59,7 +77,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 						{
 							RequestReset(stateGuid, false);
 						}
-						else if (tickResponse == EConsumeInputResponse::PASS)
+						else if (tickResponse == EConsumeInputResponse::PASSED)
 						{
 							MakeTransition(stateGuid, GetTransitions(stateGuid), outEventCalls);
 						}
@@ -72,14 +90,14 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 	ProcessResetSources(outEventCalls, outResetSources);
 }
 
-void UInputSequence::RequestReset(UObject* sourceObject, const FString& sourceContext)
+void UInputSequence::RequestReset(UObject* requestObject, const FString& requestContext)
 {
 	FScopeLock Lock(&resetSourcesCS);
 
 	int32 emplacedIndex = ResetSources.Emplace();
 	ResetSources[emplacedIndex].bResetAsset = true;
-	ResetSources[emplacedIndex].SourceObject = sourceObject;
-	ResetSources[emplacedIndex].SourceContext = sourceContext;
+	ResetSources[emplacedIndex].RequestObject = requestObject;
+	ResetSources[emplacedIndex].RequestContext = requestContext;
 }
 
 void UInputSequence::RequestReset(const FGuid& stateGuid, const bool resetAsset)
@@ -109,14 +127,14 @@ void UInputSequence::MakeTransition(const FGuid& fromStateGuid, const TSet<FGuid
 		{
 			EnterState(toState, outEventCalls);
 
-			if (toState->IsEmpty()) MakeTransition(toStateGuid, GetTransitions(toStateGuid), outEventCalls); // Jump through empty states
+			if (toState->InputActionInfos.IsEmpty()) MakeTransition(toStateGuid, GetTransitions(toStateGuid), outEventCalls); // Jump through empty states
 		}
 	}
 }
 
 void UInputSequence::PassState(FISState* state, TArray<FISEventCall>& outEventCalls)
 {
-	check(!state->bIsResetState);
+	check((state->StateFlags & EFlags_State::IS_RESET_STATE) == EFlags::NONE);
 
 	if (ActiveStates.Contains(state->StateGuid))
 	{
@@ -127,15 +145,15 @@ void UInputSequence::PassState(FISState* state, TArray<FISEventCall>& outEventCa
 			int32 emplacedIndex = outEventCalls.Emplace();
 			outEventCalls[emplacedIndex].Event = passEvent;
 			outEventCalls[emplacedIndex].StateGuid = state->StateGuid;
-			outEventCalls[emplacedIndex].SourceObject = state->StateObject;
-			outEventCalls[emplacedIndex].SourceContext = state->StateContext;
+			outEventCalls[emplacedIndex].StateObject = state->StateObject;
+			outEventCalls[emplacedIndex].StateContext = state->StateContext;
 		}
 	}
 }
 
 void UInputSequence::EnterState(FISState* state, TArray<FISEventCall>& outEventCalls)
 {
-	check(!state->bIsResetState);
+	check((state->StateFlags & EFlags_State::IS_RESET_STATE) == EFlags::NONE);
 
 	if (!ActiveStates.Contains(state->StateGuid))
 	{
@@ -144,8 +162,8 @@ void UInputSequence::EnterState(FISState* state, TArray<FISEventCall>& outEventC
 			int32 emplacedIndex = outEventCalls.Emplace();
 			outEventCalls[emplacedIndex].Event = enterEvent;
 			outEventCalls[emplacedIndex].StateGuid = state->StateGuid;
-			outEventCalls[emplacedIndex].SourceObject = state->StateObject;
-			outEventCalls[emplacedIndex].SourceContext = state->StateContext;
+			outEventCalls[emplacedIndex].StateObject = state->StateObject;
+			outEventCalls[emplacedIndex].StateContext = state->StateContext;
 		}
 
 		state->Reset();
@@ -154,13 +172,92 @@ void UInputSequence::EnterState(FISState* state, TArray<FISEventCall>& outEventC
 	}
 }
 
-EConsumeInputResponse UInputSequence::OnInput(const TMap<TObjectPtr<UInputAction>, ETriggerState>& actionStateData, FISState* state)
+EConsumeInputResponse UInputSequence::OnInput(const TMap<FSoftObjectPath, ETriggerEvent>& actionStateDatas, FISState* state)
 {
+
+	// Check Wait Time
+
+	for (const TPair<FSoftObjectPath, FISInputActionInfo>& inputActionInfo : state->InputActionInfos)
+	{
+		const FSoftObjectPath inputActionPath = inputActionInfo.Key;
+
+		if (inputActionInfo.Value.WaitTimeLeft > 0)
+		{
+			if (!actionStateDatas.Contains(inputActionPath))
+			{
+				return EConsumeInputResponse::RESET;
+			}
+			else if (*actionStateDatas.Find(inputActionPath) != inputActionInfo.Value.TriggerEvent)
+			{
+				return EConsumeInputResponse::RESET;
+			}
+		}
+	}
+
+	for (const TPair<FSoftObjectPath, ETriggerEvent>& actionStateData : actionStateDatas)
+	{
+		const FSoftObjectPath inputActionPath = actionStateData.Key;
+		
+		const ETriggerEvent triggerEvent = actionStateData.Value;
+
+		if (state->InputActionInfos.Contains(inputActionPath))
+		{
+			FISInputActionInfo* InputActionInfo = state->InputActionInfos.Find(inputActionPath);
+
+			// Precise Match
+
+			if ((InputActionInfo->InputActionInfoFlags & EFlags_InputActionInfo::REQUIRE_PRECISE_MATCH) != EFlags::NONE)
+			{
+				if (InputActionInfo->TriggerEvent != triggerEvent)
+				{
+					return EConsumeInputResponse::RESET;
+				}
+			}
+
+			if (InputActionInfo->TriggerEvent == triggerEvent && InputActionInfo->WaitTimeLeft == 0)
+			{
+				InputActionInfo->InputActionInfoFlags |= EFlags_InputActionInfo::PASSED;
+
+				for (const TPair<FSoftObjectPath, FISInputActionInfo>& otherInputActionInfo : state->InputActionInfos)
+				{
+					if ((otherInputActionInfo.Value.InputActionInfoFlags & EFlags_InputActionInfo::PASSED) == EFlags::NONE)
+					{
+						return EConsumeInputResponse::NONE;
+					}
+				}
+
+				return EConsumeInputResponse::PASSED;
+			}
+		}
+	}
+
 	return EConsumeInputResponse::NONE;
 }
 
 EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, FISState* state)
 {
+	// Tick Input Action Infos
+
+	for (TPair<FSoftObjectPath, FISInputActionInfo>& inputActionInfo : state->InputActionInfos)
+	{
+		if (inputActionInfo.Value.WaitTimeLeft > 0)
+		{
+			inputActionInfo.Value.WaitTimeLeft = FMath::Max(inputActionInfo.Value.WaitTimeLeft - deltaTime, 0);
+		}
+	}
+
+	// Check Reset Time
+
+	if (state->ResetTimeLeft > 0)
+	{
+		state->ResetTimeLeft = FMath::Max(state->ResetTimeLeft - deltaTime, 0);
+
+		if (state->ResetTimeLeft == 0)
+		{
+			return EConsumeInputResponse::RESET;
+		}
+	}
+
 	return EConsumeInputResponse::NONE;
 }
 
@@ -214,8 +311,8 @@ void UInputSequence::ProcessResetSources_Internal(const TSet<FGuid>& statesToRes
 					int32 emplacedIndex = outEventCalls.Emplace();
 					outEventCalls[emplacedIndex].Event = resetEvent;
 					outEventCalls[emplacedIndex].StateGuid = state->StateGuid;
-					outEventCalls[emplacedIndex].SourceObject = state->StateObject;
-					outEventCalls[emplacedIndex].SourceContext = state->StateContext;
+					outEventCalls[emplacedIndex].StateObject = state->StateObject;
+					outEventCalls[emplacedIndex].StateContext = state->StateContext;
 				}
 
 				MakeTransition(FGuid(), { state->ParentState }, outEventCalls);
