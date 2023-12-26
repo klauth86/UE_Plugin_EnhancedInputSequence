@@ -72,9 +72,6 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	virtual FText GetTooltipText() const override;
-
-	UPROPERTY()
-	TMap<FName, TSoftObjectPtr<UInputAction>> InputActions;
 };
 
 //------------------------------------------------------

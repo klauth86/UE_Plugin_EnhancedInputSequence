@@ -34,11 +34,28 @@
 #include "IAssetTools.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Brushes/SlateImageBrush.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Styling/SlateTypes.h"
+#include <Styling/StyleColors.h>
 
 #define LOCTEXT_NAMESPACE "FEnhancedInputSequenceEditorModule"
 
+const float InputFocusRadius = 2.f;
+const float InputFocusThickness = 0.5f;
 const FVector2D Icon8x8(8.0f, 8.0f);
 const auto extention = TEXT(".png");
+
+const FSpinBoxStyle spinBoxStyle = FSpinBoxStyle()
+.SetBackgroundBrush(FSlateRoundedBoxBrush(FStyleColors::Input, InputFocusRadius, FStyleColors::InputOutline, InputFocusThickness))
+.SetHoveredBackgroundBrush(FSlateRoundedBoxBrush(FStyleColors::Input, InputFocusRadius, FStyleColors::Hover, InputFocusThickness))
+.SetActiveBackgroundBrush(FSlateRoundedBoxBrush(FStyleColors::Input, InputFocusRadius, FStyleColors::Primary, InputFocusThickness))
+.SetActiveFillBrush(FSlateRoundedBoxBrush(FStyleColors::Primary, InputFocusRadius, FLinearColor::Transparent, InputFocusThickness))
+.SetHoveredFillBrush(FSlateRoundedBoxBrush(FStyleColors::Hover, InputFocusRadius, FLinearColor::Transparent, InputFocusThickness))
+.SetInactiveFillBrush(FSlateRoundedBoxBrush(FStyleColors::Dropdown, InputFocusRadius, FLinearColor::Transparent, InputFocusThickness))
+.SetArrowsImage(FSlateNoResource())
+.SetForegroundColor(FStyleColors::ForegroundHover)
+.SetTextPadding(FMargin(3.f, 1.f, 3.f, 1.f))
+.SetInsetPadding(FMargin(0.5));
 
 const FCheckBoxStyle checkBoxStyle = FCheckBoxStyle()
 .SetCheckBoxType(ESlateCheckBoxType::CheckBox)
@@ -57,17 +74,25 @@ const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 8, "Regula
 const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 8, "Bold");
 const float padding = 2;
 
-void AddPinToDynamicNode(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params, TObjectPtr<UInputAction> inputActionObj)
+const FName NAME_NoBorder("NoBorder");
+
+template<class T>
+void GetAssetsFromAssetRegistry(TArray<FAssetData>& outAssetDatas)
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	FARFilter filter;
+	filter.ClassPaths.Add(T::StaticClass()->GetClassPathName());
+	filter.bRecursiveClasses = true;
+	filter.bRecursivePaths = true;
+
+	AssetRegistryModule.Get().GetAssets(filter, outAssetDatas);
+}
+
+void AddPinToDynamicNode(UEdGraphNode* node, FName category, FName pinName, const FText& pinFriendlyName, const UEdGraphNode::FCreatePinParams& params)
 {
 	UEdGraphPin* graphPin = node->CreatePin(EGPD_Output, category, pinName, params);
-
-	if (inputActionObj)
-	{
-		if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(node))
-		{
-			inputGraphNode->InputActions.FindOrAdd(pinName, inputActionObj);
-		}
-	}
+	graphPin->PinFriendlyName = pinFriendlyName;
 
 	node->Modify();
 
@@ -76,8 +101,6 @@ void AddPinToDynamicNode(UEdGraphNode* node, FName category, FName pinName, cons
 		dynamicGraphNode->OnUpdateGraphNode.ExecuteIfBound();
 	}
 }
-
-const FName NAME_NoBorder("NoBorder");
 
 //------------------------------------------------------
 // SISGraphNode_Dynamic
@@ -263,62 +286,47 @@ protected:
 
 	virtual void CollectAllActions(FGraphActionListBuilderBase& OutAllActions) override
 	{
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-
-		FARFilter filter;
-		filter.ClassPaths.Add(UInputAction::StaticClass()->GetClassPathName());
-		filter.bRecursiveClasses = true;
-		filter.bRecursivePaths = true;
-
 		TArray<FAssetData> assetDatas;
-		AssetRegistryModule.Get().GetAssets(filter, assetDatas);
-
-		TSet<UInputAction*> inputActions;
-
-		for (const FAssetData& assetData : assetDatas)
-		{
-			if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
-			{
-				inputActions.FindOrAdd(inputAction);
-			}
-		}
+		GetAssetsFromAssetRegistry<UInputAction>(assetDatas);
 
 		int32 mappingIndex = 0;
 		TSet<int32> alreadyAdded;
 
 		TArray<TSharedPtr<FEdGraphSchemaAction>> schemaActions;
 
-		// Enhanced Input
-		for (UInputAction* inputAction : inputActions)
+		for (const FAssetData& assetData : assetDatas)
 		{
-			const FName inputActionName = inputAction->GetFName();
-
-			if (Node && Node->FindPin(inputActionName))
+			if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
 			{
-				alreadyAdded.Add(mappingIndex);
+				const FName inputActionName = inputAction->GetFName();
+
+				if (Node && Node->FindPin(inputActionName))
+				{
+					alreadyAdded.Add(mappingIndex);
+				}
+				else
+				{
+					const FText tooltip = FText::Format(LOCTEXT("SISParameterMenu_Pin_Tooltip", "Add {0} for {1}"), FText::FromString("Action pin"), FText::FromName(inputActionName));
+
+					TSharedPtr<FISGraphSchemaAction_AddPin> schemaAction(
+						new FISGraphSchemaAction_AddPin(
+							FText::GetEmpty()
+							, FText::FromName(inputActionName)
+							, tooltip
+							, 0
+							, 1
+						)
+					);
+
+					schemaAction->InputAction = inputAction;
+					schemaAction->InputIndex = mappingIndex;
+					schemaAction->CorrectedInputIndex = 0;
+
+					schemaActions.Add(schemaAction);
+				}
+
+				mappingIndex++;
 			}
-			else
-			{
-				const FText tooltip = FText::Format(LOCTEXT("SISParameterMenu_Pin_Tooltip", "Add {0} for {1}"), FText::FromString("Action pin"), FText::FromName(inputActionName));
-
-				TSharedPtr<FISGraphSchemaAction_AddPin> schemaAction(
-					new FISGraphSchemaAction_AddPin(
-						FText::GetEmpty()
-						, FText::FromName(inputActionName)
-						, tooltip
-						, 0
-						, 1
-					)
-				);
-
-				schemaAction->InputAction = inputAction;
-				schemaAction->InputIndex = mappingIndex;
-				schemaAction->CorrectedInputIndex = 0;
-
-				schemaActions.Add(schemaAction);
-			}
-
-			mappingIndex++;
 		}
 
 		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
@@ -363,6 +371,8 @@ public:
 
 	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
 
+	~SGraphPin_Input();
+
 protected:
 
 	FReply OnClicked_RemovePin() const;
@@ -401,11 +411,21 @@ protected:
 
 	TOptional<float> GetWaitTimeValue() const;
 
+	FSlateColor GetPinTextColor() const;
+
+	FText GetPinFriendlyName() const;
+
+	void OnAssetAddedOrRemoved(const FAssetData& assetData, bool isAdded);
+
+	void OnAssetRenamed(const FAssetData& assetData, const FString& OldObjectPath);
+
 	TSharedPtr<SButton> ButtonStartedPtr;
 	TSharedPtr<SButton> ButtonTriggeredPtr;
 	TSharedPtr<SButton> ButtonCompletedPtr;
 
 	UEdGraphPin* PinObject;
+
+	bool bInputActionExists = false;
 };
 
 void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
@@ -422,7 +442,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 	AddSlot(0, 0).RowSpan(2).VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2 * padding, padding)
 		[
-			SNew(STextBlock).Text(FText::FromName(InPin->PinName)).Font(pinFontInfo).ColorAndOpacity(FLinearColor::White).AutoWrapText(true)
+			SNew(STextBlock).Text_Raw(this, &SGraphPin_Input::GetPinFriendlyName).Font(pinFontInfo).ColorAndOpacity(this, &SGraphPin_Input::GetPinTextColor).AutoWrapText(true)
 		];
 
 	AddSlot(1, 0).VAlign(VAlign_Center)
@@ -484,7 +504,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, 0, 0, padding)
 			[
-				SNew(SNumericEntryBox<float>)
+				SNew(SNumericEntryBox<float>).SpinBoxStyle(&spinBoxStyle)
 					.Font(pinFontInfo)
 					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_WaitTime", "Wait for (sec)"))
 					.AllowSpin(true)
@@ -515,6 +535,25 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		];
 
 	SetToolTip(SNew(SToolTip_Dummy));
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	AssetRegistryModule.Get().OnAssetAdded().AddRaw(this, &SGraphPin_Input::OnAssetAddedOrRemoved, true);
+	AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &SGraphPin_Input::OnAssetAddedOrRemoved, false);
+	AssetRegistryModule.Get().OnAssetRenamed().AddRaw(this, &SGraphPin_Input::OnAssetRenamed);
+
+	if (PinObject)
+	{
+		FAssetData assetData = AssetRegistryModule.Get().GetAssetByObjectPath(PinObject->PinName);
+		bInputActionExists = assetData.GetAsset() && assetData.GetAsset()->IsA<UInputAction>();
+	}
+}
+
+SGraphPin_Input::~SGraphPin_Input()
+{
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	AssetRegistryModule.Get().OnAssetAdded().RemoveAll(this);
+	AssetRegistryModule.Get().OnAssetRemoved().RemoveAll(this);
+	AssetRegistryModule.Get().OnAssetRenamed().RemoveAll(this);
 }
 
 FReply SGraphPin_Input::OnClicked_RemovePin() const
@@ -543,11 +582,6 @@ FReply SGraphPin_Input::OnClicked_RemovePin() const
 			FromNode->RemovePin(FromPin);
 
 			FromNode->Modify();
-
-			if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(FromNode))
-			{
-				inputGraphNode->InputActions.Remove(FromPin->PinName);
-			}
 
 			if (UISGraphNode_Dynamic* dynamicGraphNode = Cast<UISGraphNode_Dynamic>(FromNode))
 			{
@@ -644,19 +678,9 @@ void SGraphPin_Input::SetWaitTimeValue(const float NewValue) const
 	if (PinObject)
 	{
 		const float PrevValue = PinObject->DefaultTextValue.IsEmpty() ? 0.f : FCString::Atof(*PinObject->DefaultTextValue.ToString());
+		
 		if (NewValue != PrevValue)
 		{
-			//FNumberFormattingOptions NumberFormatOptions;
-			//NumberFormatOptions.AlwaysSign = 1;
-			//NumberFormatOptions.UseGrouping = 0;
-			//NumberFormatOptions.MinimumIntegralDigits = 1;
-			//NumberFormatOptions.MaximumIntegralDigits = 2;
-			//NumberFormatOptions.MinimumFractionalDigits = 3;
-			//NumberFormatOptions.MaximumFractionalDigits = 3;
-
-			//auto tt = FText::AsNumber(NewValue, &NumberFormatOptions);
-			//PinObject->DefaultTextValue = FText::AsNumber(NewValue, &NumberFormatOptions);
-
 			PinObject->DefaultTextValue = FText::FromString(FString::SanitizeFloat(NewValue, 2));
 		}
 	}
@@ -670,6 +694,39 @@ TOptional<float> SGraphPin_Input::GetWaitTimeValue() const
 	}
 
 	return 0.f;
+}
+
+FSlateColor SGraphPin_Input::GetPinTextColor() const { return PinObject && bInputActionExists ? FLinearColor::White : FLinearColor::Red; }
+
+FText SGraphPin_Input::GetPinFriendlyName() const { return PinObject ? PinObject->PinFriendlyName : FText::GetEmpty(); }
+
+void SGraphPin_Input::OnAssetAddedOrRemoved(const FAssetData& assetData, bool isAdded)
+{
+	if (PinObject)
+	{
+		if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
+		{
+			if (PinObject->PinName == assetData.ObjectPath)
+			{
+				bInputActionExists = isAdded;
+			}
+		}
+	}
+}
+
+void SGraphPin_Input::OnAssetRenamed(const FAssetData& assetData, const FString& OldObjectPath)
+{
+	if (PinObject)
+	{
+		if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
+		{
+			if (PinObject->PinName.ToString() == OldObjectPath)
+			{
+				PinObject->PinName = FName(inputAction->GetPathName());
+				PinObject->PinFriendlyName = FText::FromName(inputAction->GetFName());
+			}
+		}
+	}
 }
 
 //------------------------------------------------------
@@ -735,7 +792,7 @@ void SISGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox
 				[
 					SNew(SBox).MinDesiredWidth(150)
 						[
-							SNew(SNumericEntryBox<float>)
+							SNew(SNumericEntryBox<float>).SpinBoxStyle(&spinBoxStyle)
 								.IsEnabled_Raw(this, &SISGraphNode_Input::HasOverrideResetTime)
 								.Font(pinFontInfo)
 								.ToolTipText(LOCTEXT("SISGraphNode_Input_TooltipText_ResetTime", "Reset Time (sec)"))
@@ -875,7 +932,8 @@ FReply SISGraphNode_Hub::OnClickedAddButton()
 	UEdGraphNode::FCreatePinParams params;
 	params.Index = outputPinsCount;
 
-	AddPinToDynamicNode(GraphNode, UISGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), params, nullptr);
+	const FString numberedName = FString::FromInt(outputPinsCount);
+	AddPinToDynamicNode(GraphNode, UISGraphSchema::PC_Exec, FName(numberedName), FText::FromString(numberedName), params);
 
 	return FReply::Handled();
 }
@@ -1285,7 +1343,7 @@ UEdGraphNode* FISGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentG
 		UEdGraphNode::FCreatePinParams params;
 		params.Index = CorrectedInputIndex + execPinCount;
 
-		AddPinToDynamicNode(FromPin->GetOwningNode(), UISGraphSchema::PC_Input, InputAction->GetFName(), params, InputAction);
+		AddPinToDynamicNode(FromPin->GetOwningNode(), UISGraphSchema::PC_Input, FName(InputAction->GetPathName()), FText::FromName(InputAction->GetFName()), params);
 	}
 
 	return ResultNode;
