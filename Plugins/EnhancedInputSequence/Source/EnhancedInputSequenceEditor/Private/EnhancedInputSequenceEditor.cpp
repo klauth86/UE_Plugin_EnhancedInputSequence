@@ -75,6 +75,7 @@ const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 8
 const float padding = 2;
 
 const FName NAME_NoBorder("NoBorder");
+const FString trueFlag("1");
 
 template<class T>
 void GetAssetsFromAssetRegistry(TArray<FAssetData>& outAssetDatas)
@@ -89,10 +90,10 @@ void GetAssetsFromAssetRegistry(TArray<FAssetData>& outAssetDatas)
 	AssetRegistryModule.Get().GetAssets(filter, outAssetDatas);
 }
 
-void AddPinToDynamicNode(UEdGraphNode* node, FName category, FName pinName, const FText& pinFriendlyName, const UEdGraphNode::FCreatePinParams& params)
+void AddPinToDynamicNode(UEdGraphNode* node, FName category, FName pinName, const UEdGraphNode::FCreatePinParams& params, TObjectPtr<UInputAction> inputAction)
 {
 	UEdGraphPin* graphPin = node->CreatePin(EGPD_Output, category, pinName, params);
-	graphPin->PinFriendlyName = pinFriendlyName;
+	graphPin->DefaultObject = inputAction;
 
 	node->Modify();
 
@@ -371,8 +372,6 @@ public:
 
 	void Construct(const FArguments& InArgs, UEdGraphPin* InPin);
 
-	~SGraphPin_Input();
-
 protected:
 
 	FReply OnClicked_RemovePin() const;
@@ -415,17 +414,11 @@ protected:
 
 	FText GetPinFriendlyName() const;
 
-	void OnAssetAddedOrRemoved(const FAssetData& assetData, bool isAdded);
-
-	void OnAssetRenamed(const FAssetData& assetData, const FString& OldObjectPath);
-
 	TSharedPtr<SButton> ButtonStartedPtr;
 	TSharedPtr<SButton> ButtonTriggeredPtr;
 	TSharedPtr<SButton> ButtonCompletedPtr;
 
 	UEdGraphPin* PinObject;
-
-	bool bInputActionExists = false;
 };
 
 void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
@@ -535,25 +528,6 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		];
 
 	SetToolTip(SNew(SToolTip_Dummy));
-
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistryModule.Get().OnAssetAdded().AddRaw(this, &SGraphPin_Input::OnAssetAddedOrRemoved, true);
-	AssetRegistryModule.Get().OnAssetRemoved().AddRaw(this, &SGraphPin_Input::OnAssetAddedOrRemoved, false);
-	AssetRegistryModule.Get().OnAssetRenamed().AddRaw(this, &SGraphPin_Input::OnAssetRenamed);
-
-	if (PinObject)
-	{
-		FAssetData assetData = AssetRegistryModule.Get().GetAssetByObjectPath(PinObject->PinName);
-		bInputActionExists = assetData.GetAsset() && assetData.GetAsset()->IsA<UInputAction>();
-	}
-}
-
-SGraphPin_Input::~SGraphPin_Input()
-{
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	AssetRegistryModule.Get().OnAssetAdded().RemoveAll(this);
-	AssetRegistryModule.Get().OnAssetRemoved().RemoveAll(this);
-	AssetRegistryModule.Get().OnAssetRenamed().RemoveAll(this);
 }
 
 FReply SGraphPin_Input::OnClicked_RemovePin() const
@@ -656,7 +630,7 @@ void SGraphPin_Input::RequirePreciseMatchStateChanged(ECheckBoxState checkBoxSta
 {
 	if (PinObject)
 	{
-		PinObject->DefaultObject = (checkBoxState == ECheckBoxState::Checked ? PinObject->GetOwningNode() : nullptr);
+		PinObject->PinToolTip = (checkBoxState == ECheckBoxState::Checked ? trueFlag : "");
 	}
 }
 
@@ -664,7 +638,7 @@ ECheckBoxState SGraphPin_Input::RequirePreciseMatch() const
 {
 	if (PinObject)
 	{
-		if (PinObject->DefaultObject == PinObject->GetOwningNode())
+		if (PinObject->PinToolTip == trueFlag)
 		{
 			return ECheckBoxState::Checked;
 		}
@@ -696,38 +670,9 @@ TOptional<float> SGraphPin_Input::GetWaitTimeValue() const
 	return 0.f;
 }
 
-FSlateColor SGraphPin_Input::GetPinTextColor() const { return PinObject && bInputActionExists ? FLinearColor::White : FLinearColor::Red; }
+FSlateColor SGraphPin_Input::GetPinTextColor() const { return PinObject && PinObject->DefaultObject.IsResolved() && !PinObject->DefaultObject.IsNull() ? FLinearColor::White : FLinearColor::Red; }
 
-FText SGraphPin_Input::GetPinFriendlyName() const { return PinObject ? PinObject->PinFriendlyName : FText::GetEmpty(); }
-
-void SGraphPin_Input::OnAssetAddedOrRemoved(const FAssetData& assetData, bool isAdded)
-{
-	if (PinObject)
-	{
-		if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
-		{
-			if (PinObject->PinName == assetData.ObjectPath)
-			{
-				bInputActionExists = isAdded;
-			}
-		}
-	}
-}
-
-void SGraphPin_Input::OnAssetRenamed(const FAssetData& assetData, const FString& OldObjectPath)
-{
-	if (PinObject)
-	{
-		if (UInputAction* inputAction = Cast<UInputAction>(assetData.GetAsset()))
-		{
-			if (PinObject->PinName.ToString() == OldObjectPath)
-			{
-				PinObject->PinName = FName(inputAction->GetPathName());
-				PinObject->PinFriendlyName = FText::FromName(inputAction->GetFName());
-			}
-		}
-	}
-}
+FText SGraphPin_Input::GetPinFriendlyName() const { return PinObject && PinObject->DefaultObject ? FText::FromString(PinObject->DefaultObject->GetName()) : LOCTEXT("SGraphPin_Input_PinFriendlyName", "???"); }
 
 //------------------------------------------------------
 // SISGraphNode_Input
@@ -933,7 +878,7 @@ FReply SISGraphNode_Hub::OnClickedAddButton()
 	params.Index = outputPinsCount;
 
 	const FString numberedName = FString::FromInt(outputPinsCount);
-	AddPinToDynamicNode(GraphNode, UISGraphSchema::PC_Exec, FName(numberedName), FText::FromString(numberedName), params);
+	AddPinToDynamicNode(GraphNode, UISGraphSchema::PC_Exec, FName(numberedName), params, nullptr);
 
 	return FReply::Handled();
 }
@@ -1343,7 +1288,7 @@ UEdGraphNode* FISGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentG
 		UEdGraphNode::FCreatePinParams params;
 		params.Index = CorrectedInputIndex + execPinCount;
 
-		AddPinToDynamicNode(FromPin->GetOwningNode(), UISGraphSchema::PC_Input, FName(InputAction->GetPathName()), FText::FromName(InputAction->GetFName()), params);
+		AddPinToDynamicNode(FromPin->GetOwningNode(), UISGraphSchema::PC_Input, FName(FGuid::NewGuid().ToString()), params, InputAction);
 	}
 
 	return ResultNode;
