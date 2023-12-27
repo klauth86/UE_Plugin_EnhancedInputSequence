@@ -16,16 +16,16 @@ void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& 
 		enhancedActionInputStack.Add(inputActionPath, inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
 	}
 
-	TArray<FISEventCall> eventCalls;
-	TArray<FISResetSource> resetSources;
+	TArray<FEventRequest> eventRequests;
+	TArray<FResetRequest> resetRequests;
 
 	for (UInputSequence* inputSequence : InputSequences)
 	{
-		inputSequence->OnInput(DeltaTime, bGamePaused, enhancedActionInputStack, eventCalls, resetSources);
+		inputSequence->OnInput(DeltaTime, bGamePaused, enhancedActionInputStack, eventRequests, resetRequests);
 	}
 
-	for (const FISEventCall& eventCall : eventCalls)
+	for (const FEventRequest& eventRequest : eventRequests)
 	{
-		eventCall.Event->Execute(eventCall.StateGuid, eventCall.StateObject, eventCall.StateContext, resetSources);
+		eventRequest.InputSequenceEvent->Execute(eventRequest.StateGuid, eventRequest.RequestKey, resetRequests);
 	}
 }

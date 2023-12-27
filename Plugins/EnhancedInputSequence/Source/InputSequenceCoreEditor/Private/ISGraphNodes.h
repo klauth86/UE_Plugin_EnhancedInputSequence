@@ -5,8 +5,9 @@
 #include "EdGraph/EdGraphNode.h"
 #include "ISGraphNodes.generated.h"
 
+class URequestKey;
 class UInputAction;
-class UISEvent;
+class UInputSequenceEvent;
 enum class ETriggerEvent :uint8;
 
 //------------------------------------------------------
@@ -69,16 +70,14 @@ public:
 	virtual FText GetTooltipText() const override;
 
 	UPROPERTY(EditAnywhere, Category="Events")
-	TArray<TObjectPtr<UISEvent>> EnterEvents;
+	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
 	UPROPERTY(EditAnywhere, Category = "Events")
-	TArray<TObjectPtr<UISEvent>> PassEvents;
+	TArray<TObjectPtr<UInputSequenceEvent>> PassEvents;
 	UPROPERTY(EditAnywhere, Category = "Events")
-	TArray<TObjectPtr<UISEvent>> ResetEvents;
+	TArray<TObjectPtr<UInputSequenceEvent>> ResetEvents;
 
 	UPROPERTY(EditAnywhere, Category = "Context")
-	TObjectPtr<UObject> StateObject;
-	UPROPERTY(EditAnywhere, Category = "Context")
-	FString StateContext;
+	TObjectPtr<URequestKey> RequestKey;
 
 	UPROPERTY()
 	float ResetTime;

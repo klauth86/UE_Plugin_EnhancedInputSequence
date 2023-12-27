@@ -8,7 +8,7 @@
 class UEdGraph;
 class UInputAction;
 
-enum class EConsumeInputResponse : uint8
+enum class EConsumeInputResponse :uint8
 {
 	NONE,
 	RESET,
@@ -37,123 +37,123 @@ namespace EFlags_InputActionInfo
 };
 
 //------------------------------------------------------
-// FISResetSource
+// URequestKey
+//------------------------------------------------------
+
+UCLASS(BlueprintType)
+class INPUTSEQUENCECORE_API URequestKey :public UObject
+{
+	GENERATED_BODY()
+};
+
+//------------------------------------------------------
+// FResetRequest
 //------------------------------------------------------
 
 USTRUCT(BlueprintType)
-struct ENHANCEDINPUTSEQUENCE_API FISResetSource
+struct INPUTSEQUENCECORE_API FResetRequest
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
-	FISResetSource() :StateGuid(FGuid()), bResetAsset(0), RequestObject(nullptr), RequestContext("") {}
+	FResetRequest() :StateGuid(FGuid()), RequestKey(nullptr), bResetAsset(0) {}
 
-	/* Request State */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
+	/* Requested by State */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
 	FGuid StateGuid;
 
-	/* Request should reset whole asset */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
+	/* Requested with Request Key */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
+	TObjectPtr<URequestKey> RequestKey;
+
+	/* If true, request will reset all active states */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
 	uint8 bResetAsset : 1;
-
-	/* Request State Source Object or external Source Object */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
-	TObjectPtr<UObject> RequestObject;
-
-	/* Request State Source Context or external Source Context */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Source")
-	FString RequestContext;
 };
 
 //------------------------------------------------------
-// FISEventCall
+// FEventRequest
 //------------------------------------------------------
 
 USTRUCT(BlueprintType)
-struct ENHANCEDINPUTSEQUENCE_API FISEventCall
+struct INPUTSEQUENCECORE_API FEventRequest
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
-	FISEventCall() :Event(nullptr), StateGuid(FGuid()), StateObject(nullptr), StateContext("") {}
+	FEventRequest() :StateGuid(FGuid()), RequestKey(nullptr), InputSequenceEvent(nullptr) {}
 
-	/* Input Sequence Event for this Event Call */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
-	TObjectPtr<UISEvent> Event;
-
-	/* Owning State for this Event Call */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
+	/* Requested by State */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
 	FGuid StateGuid;
 
-	/* Owning State Source Object for this Event Call */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
-	TObjectPtr<UObject> StateObject;
+	/* Requested with Request Key */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
+	TObjectPtr<URequestKey> RequestKey;
 
-	/* Owning State Source Context for this Event Call */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Call")
-	FString StateContext;
+	/* Requested Input Sequence Event */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
+	TObjectPtr<UInputSequenceEvent> InputSequenceEvent;
 };
 
 //------------------------------------------------------
-// UISEvent
+// UInputSequenceEvent
 //------------------------------------------------------
 
 UCLASS(Abstract, EditInlineNew, BlueprintType, Blueprintable)
-class ENHANCEDINPUTSEQUENCE_API UISEvent : public UObject
+class INPUTSEQUENCECORE_API UInputSequenceEvent : public UObject
 {
 	GENERATED_BODY()
 
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, Category = "Input Sequence Event")
-	void Execute(const FGuid& stateGuid, UObject* stateObject, const FString& stateContext, const TArray<FISResetSource>& resetSources);
+	void Execute(const FGuid& stateGuid, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
 
-	virtual void Execute_Implementation(const FGuid& stateGuid, UObject* stateObject, const FString& stateContext, const TArray<FISResetSource>& resetSources) {}
+	virtual void Execute_Implementation(const FGuid& stateGuid, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
 
 	virtual UWorld* GetWorld() const override;
 };
 
 //------------------------------------------------------
-// FISState
+// FInputSequenceState
 //------------------------------------------------------
 
 USTRUCT()
-struct ENHANCEDINPUTSEQUENCE_API FISStateCollection
+struct INPUTSEQUENCECORE_API FInputSequenceStateCollection
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
 	UPROPERTY()
-	TSet<FGuid> StateGuids;
+	TSet<FGuid> NextStateGuids;
 };
 
 //------------------------------------------------------
-// FISStateInputCheck
+// FInputActionInfo
 //------------------------------------------------------
 
 USTRUCT()
-struct ENHANCEDINPUTSEQUENCE_API FISInputActionInfo
+struct INPUTSEQUENCECORE_API FInputActionInfo
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
-	FISInputActionInfo()
-	{
-		TriggerEvent = ETriggerEvent::None;
-		InputActionInfoFlags = EFlags::NONE;
-		WaitTime = 0;
-		WaitTimeLeft = 0;
-	}
+	FInputActionInfo();
+
+	void Reset();
+
+	bool IsPassed() const { return (Flags & EFlags_InputActionInfo::PASSED) != EFlags::NONE; }
 
 	UPROPERTY()
 	ETriggerEvent TriggerEvent;
 
 	UPROPERTY()
-	uint8 InputActionInfoFlags;
+	uint8 Flags;
 
 	UPROPERTY()
 	float WaitTime;
@@ -162,19 +162,19 @@ public:
 };
 
 //------------------------------------------------------
-// FISState
+// FInputSequenceState
 //------------------------------------------------------
 
 USTRUCT()
-struct ENHANCEDINPUTSEQUENCE_API FISState
+struct INPUTSEQUENCECORE_API FInputSequenceState
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
-	FISState(uint32 typeHash = INDEX_NONE) { Reset(); }
+	FInputSequenceState(uint32 typeHash = INDEX_NONE) { Reset(); }
 
-	bool operator==(const FISState& state) const { return state.StateGuid == StateGuid; }
+	bool operator==(const FInputSequenceState& state) const { return state.StateGuid == StateGuid; }
 
 	void Reset();
 
@@ -182,41 +182,37 @@ public:
 	FGuid StateGuid;
 
 	UPROPERTY()
-	TMap<FSoftObjectPath, FISInputActionInfo> InputActionInfos;
+	TMap<FSoftObjectPath, FInputActionInfo> InputActionInfos;
 
 	UPROPERTY()
-	TArray<TObjectPtr<UISEvent>> EnterEvents;
+	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
 	UPROPERTY()
-	TArray<TObjectPtr<UISEvent>> PassEvents;
+	TArray<TObjectPtr<UInputSequenceEvent>> PassEvents;
 	UPROPERTY()
-	TArray<TObjectPtr<UISEvent>> ResetEvents;
+	TArray<TObjectPtr<UInputSequenceEvent>> ResetEvents;
 
 	UPROPERTY()
-	TObjectPtr<UObject> StateObject;
-	UPROPERTY()
-	FString StateContext;
+	TObjectPtr<URequestKey> RequestKey;
 
 	UPROPERTY()
-	uint8 StateFlags;
+	uint8 Flags;
 	UPROPERTY()
 	float ResetTime;
 
 	float ResetTimeLeft;
 
 	UPROPERTY()
-	int32 DepthIndex;
-	UPROPERTY()
-	FGuid ParentState;
+	FGuid RootStateGuid;
 };
 
-int32 GetTypeHash(const FISState& state) { return GetTypeHash(state.StateGuid); }
+int32 GetTypeHash(const FInputSequenceState& state) { return GetTypeHash(state.StateGuid); }
 
 //------------------------------------------------------
 // UInputSequence
 //------------------------------------------------------
 
 UCLASS()
-class ENHANCEDINPUTSEQUENCE_API UInputSequence : public UObject
+class INPUTSEQUENCECORE_API UInputSequence : public UObject
 {
 	GENERATED_BODY()
 
@@ -229,27 +225,36 @@ public:
 
 	TSet<FGuid>& GetEntryStates() { return EntryStates; }
 
-	TSet<FISState>& GetStates() { return States; }
+	TSet<FInputSequenceState>& GetStates() { return States; }
 
-	TMap<FGuid, FISStateCollection>& GetTransitions() { return Transitions; }
+	TMap<FGuid, FInputSequenceStateCollection>& GetTransitions() { return Transitions; }
 
 	bool GetRequirePreciseMatchDefaultValue() const { return bRequirePreciseMatchDefaultValue; }
 
 #endif
 
-	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, TArray<FISEventCall>& outEventCalls, TArray<FISResetSource>& outResetSources);
-
 	/**
-	* Sets World Context for Flow
+	* Feed input to Input Sequence and receives Event Requests and Reset Requests as result
 	*
-	* @param worldContextObject		World Context to set
+	* @param deltaTime				Request key
+	* @param bGamePaused			Request key
+	* @param actionStateData		Collection of Input Actions Trigger Events
+	* @param outEventRequests		Collection of Event Requests, that will be filled
+	* @param outResetRequests		Collection of Reset Requests, that will be filled
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void RequestReset(UObject* requestObject, const FString& requestContext);
+	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventRequests, TArray<FResetRequest>& outResetRequests);
 
 	/**
-	* Sets World Context for Flow
+	* Requests reset for Input Sequence
+	*
+	* @param requestKey				Request key
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
+	void RequestReset(URequestKey* requestKey);
+
+	/**
+	* Sets World Context for Input Sequence
 	*
 	* @param worldContextObject		World Context to set
 	*/
@@ -260,27 +265,27 @@ public:
 
 protected:
 
-	void MakeTransition(const FGuid& stateGuid, const TSet<FGuid>& nextStates, TArray<FISEventCall>& outEventCalls);
+	void MakeTransition(const FGuid& stateGuid, const TSet<FGuid>& nextStates, TArray<FEventRequest>& outEventCalls);
 
 	const TSet<FGuid>& GetTransitions(const FGuid& stateGuid) const
 	{
 		static const TSet<FGuid> emptySet;
-		return Transitions.Contains(stateGuid) ? Transitions[stateGuid].StateGuids : emptySet;
+		return Transitions.Contains(stateGuid) ? Transitions[stateGuid].NextStateGuids : emptySet;
 	}
 
-	void RequestReset(const FGuid& stateGuid, const bool resetAsset);
+	void RequestReset(const FGuid& stateGuid, URequestKey* requestKey, const bool resetAsset);
 
-	void PassState(FISState* state, TArray<FISEventCall>& outEventCalls);
+	void EnterState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls);
 
-	void EnterState(FISState* state, TArray<FISEventCall>& outEventCalls);
+	void PassState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls);
 
-	EConsumeInputResponse OnInput(const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, FISState* state);
+	EConsumeInputResponse OnInput(const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, FInputSequenceState* state);
 
-	EConsumeInputResponse OnTick(const float deltaTime, FISState* state);
+	EConsumeInputResponse OnTick(const float deltaTime, FInputSequenceState* state);
 
-	void ProcessResetSources(TArray<FISEventCall>& outEventCalls, TArray<FISResetSource>& outResetSources);
+	void ProcessResetSources(TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources);
 
-	void ProcessResetSources_Internal(const TSet<FGuid>& statesToReset, TArray<FISEventCall>& outEventCalls);
+	void ProcessResetSources_Internal(const TSet<FGuid>& statesToReset, TArray<FEventRequest>& outEventCalls);
 
 protected:
 
@@ -292,13 +297,13 @@ protected:
 	TSet<FGuid> EntryStates;
 
 	UPROPERTY()
-	TSet<FISState> States;
+	TSet<FInputSequenceState> States;
 
 	UPROPERTY()
-	TMap<FGuid, FISStateCollection> Transitions;
+	TMap<FGuid, FInputSequenceStateCollection> Transitions;
 
 	UPROPERTY(Transient)
-	TArray<FISResetSource> ResetSources;
+	TArray<FResetRequest> ResetSources;
 
 	/* If true, any mismatched input will reset asset to initial state */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence")

@@ -8,7 +8,7 @@
 class UInputSequence;
 
 UCLASS()
-class ENHANCEDINPUTSEQUENCE_API UEnhancedPlayerInput_IS : public UEnhancedPlayerInput
+class INPUTSEQUENCECORE_API UEnhancedPlayerInput_IS : public UEnhancedPlayerInput
 {
 	GENERATED_BODY()
 

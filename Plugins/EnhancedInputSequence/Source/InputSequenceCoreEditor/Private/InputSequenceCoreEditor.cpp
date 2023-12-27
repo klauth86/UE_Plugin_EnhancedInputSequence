@@ -1228,21 +1228,21 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 				inputSequence->GetEntryStates().Add(entryGraphNode->NodeGuid);
 
 				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(entryGraphNode->NodeGuid));
-				FISState& state = inputSequence->GetStates()[stateId];
+				FInputSequenceState& state = inputSequence->GetStates()[stateId];
 				state.StateGuid = entryGraphNode->NodeGuid;
-				state.StateFlags = EFlags_State::IS_ENTRY_STATE;
+				state.Flags = EFlags_State::IS_ENTRY_STATE;
 			}
 			else if (UISGraphNode_Reset* resetGraphNode = Cast<UISGraphNode_Reset>(node))
 			{
 				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(resetGraphNode->NodeGuid));
-				FISState& state = inputSequence->GetStates()[stateId];
+				FInputSequenceState& state = inputSequence->GetStates()[stateId];
 				state.StateGuid = resetGraphNode->NodeGuid;
-				state.StateFlags = EFlags_State::IS_RESET_STATE;
+				state.Flags = EFlags_State::IS_RESET_STATE;
 			}
 			else if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(node))
 			{
 				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(inputGraphNode->NodeGuid));
-				FISState& state = inputSequence->GetStates()[stateId];
+				FInputSequenceState& state = inputSequence->GetStates()[stateId];
 				state.StateGuid = inputGraphNode->NodeGuid;
 
 				for (UEdGraphPin* pin : inputGraphNode->Pins)
@@ -1251,12 +1251,12 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 					{
 						if (UInputAction* inputAction = Cast<UInputAction>(pin->DefaultObject))
 						{
-							FISInputActionInfo& inputCheck = state.InputActionInfos.Emplace(FSoftObjectPath(inputAction));
+							FInputActionInfo& inputCheck = state.InputActionInfos.Emplace(FSoftObjectPath(inputAction));
 							inputCheck.TriggerEvent = static_cast<ETriggerEvent>(FCString::Atoi(*pin->DefaultValue));
 							
 							if (pin->PinToolTip == trueFlag)
 							{
-								inputCheck.InputActionInfoFlags |= EFlags_InputActionInfo::REQUIRE_PRECISE_MATCH;
+								inputCheck.Flags |= EFlags_InputActionInfo::REQUIRE_PRECISE_MATCH;
 							}
 							
 							inputCheck.WaitTime = FMath::RoundHalfToEven(pin->DefaultTextValue.IsEmpty() ? 0.f : FCString::Atof(*pin->DefaultTextValue.ToString()));
@@ -1265,33 +1265,32 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 				}
 
 				state.EnterEvents.SetNum(inputGraphNode->EnterEvents.Num());
-				for (const TObjectPtr<UISEvent>& Event : inputGraphNode->EnterEvents)
+				for (const TObjectPtr<UInputSequenceEvent>& Event : inputGraphNode->EnterEvents)
 				{
 					state.EnterEvents.Add(DuplicateObject(Event, InputSequence));
 				}
 
 				state.PassEvents.SetNum(inputGraphNode->PassEvents.Num());
-				for (const TObjectPtr<UISEvent>& Event : inputGraphNode->PassEvents)
+				for (const TObjectPtr<UInputSequenceEvent>& Event : inputGraphNode->PassEvents)
 				{
 					state.PassEvents.Add(DuplicateObject(Event, InputSequence));
 				}
 
 				state.ResetEvents.SetNum(inputGraphNode->ResetEvents.Num());
-				for (const TObjectPtr<UISEvent>& Event : inputGraphNode->ResetEvents)
+				for (const TObjectPtr<UInputSequenceEvent>& Event : inputGraphNode->ResetEvents)
 				{
 					state.ResetEvents.Add(DuplicateObject(Event, InputSequence));
 				}
 
-				state.StateObject = inputGraphNode->StateObject;
-				state.StateContext = inputGraphNode->StateContext;
+				state.RequestKey = inputGraphNode->RequestKey;
 
 				if (inputGraphNode->bOverrideResetTime)
 				{
-					state.StateFlags |= EFlags_State::OVERRIDE_HAS_RESET_TIME;
+					state.Flags |= EFlags_State::OVERRIDE_HAS_RESET_TIME;
 					
 					if (state.ResetTime > 0)
 					{
-						state.StateFlags |= EFlags_State::HAS_RESET_TIME;
+						state.Flags |= EFlags_State::HAS_RESET_TIME;
 					}
 				}
 
@@ -2146,6 +2145,16 @@ void FAssetTypeActions_InputSequence::OpenAssetEditor(const TArray<UObject*>& In
 uint32 FAssetTypeActions_InputSequence::GetCategories() { return EAssetTypeCategories::Misc; }
 
 //------------------------------------------------------
+// FAssetTypeActions_RequestKey
+//------------------------------------------------------
+
+FText FAssetTypeActions_RequestKey::GetName() const { return LOCTEXT("FAssetTypeActions_RequestKey_Name", "Request Key (for Input Sequence)"); }
+
+UClass* FAssetTypeActions_RequestKey::GetSupportedClass() const { return URequestKey::StaticClass(); }
+
+uint32 FAssetTypeActions_RequestKey::GetCategories() { return EAssetTypeCategories::Misc; }
+
+//------------------------------------------------------
 // UFactory_InputSequence
 //------------------------------------------------------
 
@@ -2174,6 +2183,7 @@ const FName AssetToolsModuleName("AssetTools");
 void FInputSequenceCoreEditor::StartupModule()
 {
 	RegisteredAssetTypeActions.Add(MakeShared<FAssetTypeActions_InputSequence>());
+	RegisteredAssetTypeActions.Add(MakeShared<FAssetTypeActions_RequestKey>());
 
 	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(AssetToolsModuleName).Get();
 	for (TSharedPtr<FAssetTypeActions_Base>& registeredAssetTypeAction : RegisteredAssetTypeActions)
