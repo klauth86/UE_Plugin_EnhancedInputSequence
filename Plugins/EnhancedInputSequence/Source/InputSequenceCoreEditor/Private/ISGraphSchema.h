@@ -90,13 +90,10 @@ struct FISGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 
 	TObjectPtr<UInputAction> InputAction;
 
-	int32 InputIndex;
-	int32 CorrectedInputIndex;
-
-	FISGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputAction(nullptr), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE) {}
+	FISGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputAction(nullptr) {}
 
 	FISGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping, int32 InSectionID)
-		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping, FText::GetEmpty(), InSectionID), InputAction(nullptr), InputIndex(INDEX_NONE), CorrectedInputIndex(INDEX_NONE)
+		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping, FText::GetEmpty(), InSectionID), InputAction(nullptr)
 	{}
 
 	virtual UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;

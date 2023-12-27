@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class EnhancedInputSequence : ModuleRules
+public class InputSequenceCoreEditor : ModuleRules
 {
-	public EnhancedInputSequence(ReadOnlyTargetRules Target) : base(Target)
+	public InputSequenceCoreEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -25,7 +25,7 @@ public class EnhancedInputSequence : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core"
+				"Core",
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
@@ -34,7 +34,20 @@ public class EnhancedInputSequence : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-                "CoreUObject", "Engine", "EnhancedInput"
+				"CoreUObject",
+				"Engine",
+				"AssetTools",
+				"UnrealEd",
+				"SlateCore",
+				"Slate",
+				"GraphEditor",
+				"ApplicationCore",
+				"KismetWidgets",
+				"EnhancedInput",
+				"AssetRegistry",
+				"InputCore",
+				
+				"InputSequenceCore",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

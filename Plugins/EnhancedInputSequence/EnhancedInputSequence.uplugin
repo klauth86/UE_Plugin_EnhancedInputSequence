@@ -17,7 +17,7 @@
 	"Installed": false,
 	"Modules": [
 		{
-			"Name": "EnhancedInputSequence",
+			"Name": "InputSequenceCore",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -25,7 +25,7 @@
 			]
 		},
 		{
-			"Name": "EnhancedInputSequenceEditor",
+			"Name": "InputSequenceCoreEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [

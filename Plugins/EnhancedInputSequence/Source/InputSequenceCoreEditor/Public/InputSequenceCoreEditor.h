@@ -9,7 +9,7 @@ struct FISGraphNodeFactory;
 struct FISGraphPinFactory;
 struct FISGraphPinConnectionFactory;
 
-class FEnhancedInputSequenceEditorModule : public IModuleInterface
+class FInputSequenceCoreEditor : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override;

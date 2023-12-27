@@ -1,6 +1,6 @@
 // Copyright 2023 Pentangle Studio under EULA https://www.unrealengine.com/en-US/eula/unreal
 
-#include "EnhancedInputSequenceEditor.h"
+#include "InputSequenceCoreEditor.h"
 
 #include "Kismet/KismetTextLibrary.h"
 
@@ -39,7 +39,7 @@
 
 #include "UObject/ObjectSaveContext.h"
 
-#define LOCTEXT_NAMESPACE "FEnhancedInputSequenceEditorModule"
+#define LOCTEXT_NAMESPACE "FInputSequenceCoreEditor"
 
 const float InputFocusRadius = 2.f;
 const float InputFocusThickness = 0.5f;
@@ -291,8 +291,15 @@ protected:
 		TArray<FAssetData> assetDatas;
 		GetAssetsFromAssetRegistry<UInputAction>(assetDatas);
 
-		int32 mappingIndex = 0;
-		TSet<int32> alreadyAdded;
+		TSet<UInputAction*> alreadyAdded;
+
+		for (const UEdGraphPin* pin : Node->Pins)
+		{
+			if (UInputAction* inputAction = Cast<UInputAction>(pin->DefaultObject))
+			{
+				alreadyAdded.FindOrAdd(inputAction);
+			}
+		}
 
 		TArray<TSharedPtr<FEdGraphSchemaAction>> schemaActions;
 
@@ -302,11 +309,7 @@ protected:
 			{
 				const FName inputActionName = inputAction->GetFName();
 
-				if (Node && Node->FindPin(inputActionName))
-				{
-					alreadyAdded.Add(mappingIndex);
-				}
-				else
+				if (!alreadyAdded.Contains(inputAction))
 				{
 					const FText tooltip = FText::Format(LOCTEXT("SISParameterMenu_Pin_Tooltip", "Add {0} for {1}"), FText::FromString("Action pin"), FText::FromName(inputActionName));
 
@@ -321,25 +324,14 @@ protected:
 					);
 
 					schemaAction->InputAction = inputAction;
-					schemaAction->InputIndex = mappingIndex;
-					schemaAction->CorrectedInputIndex = 0;
-
 					schemaActions.Add(schemaAction);
 				}
-
-				mappingIndex++;
 			}
 		}
 
 		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
 		{
 			TSharedPtr<FISGraphSchemaAction_AddPin> addPinAction = StaticCastSharedPtr<FISGraphSchemaAction_AddPin>(schemaAction);
-
-			for (int32 alreadyAddedIndex : alreadyAdded)
-			{
-				if (alreadyAddedIndex < addPinAction->InputIndex) addPinAction->CorrectedInputIndex++;
-			}
-
 			OutAllActions.AddAction(schemaAction);
 		}
 	}
@@ -1275,19 +1267,19 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 				state.EnterEvents.SetNum(inputGraphNode->EnterEvents.Num());
 				for (const TObjectPtr<UISEvent>& Event : inputGraphNode->EnterEvents)
 				{
-					state.EnterEvents.Add(DuplicateObject(Event, nullptr));
+					state.EnterEvents.Add(DuplicateObject(Event, InputSequence));
 				}
 
 				state.PassEvents.SetNum(inputGraphNode->PassEvents.Num());
 				for (const TObjectPtr<UISEvent>& Event : inputGraphNode->PassEvents)
 				{
-					state.PassEvents.Add(DuplicateObject(Event, nullptr));
+					state.PassEvents.Add(DuplicateObject(Event, InputSequence));
 				}
 
 				state.ResetEvents.SetNum(inputGraphNode->ResetEvents.Num());
 				for (const TObjectPtr<UISEvent>& Event : inputGraphNode->ResetEvents)
 				{
-					state.ResetEvents.Add(DuplicateObject(Event, nullptr));
+					state.ResetEvents.Add(DuplicateObject(Event, InputSequence));
 				}
 
 				state.StateObject = inputGraphNode->StateObject;
@@ -1411,12 +1403,10 @@ UEdGraphNode* FISGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentG
 
 	if (InputAction)
 	{
-		const int32 execPinCount = 2;
-
 		const FScopedTransaction Transaction(LOCTEXT("K2_AddPin", "Add Pin"));
 
 		UEdGraphNode::FCreatePinParams params;
-		params.Index = CorrectedInputIndex + execPinCount;
+		////// TODO params.Index = CorrectedInputIndex + execPinCount;
 
 		AddPinToDynamicNode(FromPin->GetOwningNode(), UISGraphSchema::PC_Input, FName(FGuid::NewGuid().ToString()), params, InputAction);
 	}
@@ -2176,12 +2166,12 @@ FText UFactory_InputSequence::GetDisplayName() const { return LOCTEXT("UFactory_
 uint32 UFactory_InputSequence::GetMenuCategories() const { return EAssetTypeCategories::Misc; }
 
 //------------------------------------------------------
-// FEnhancedInputSequenceEditorModule
+// FInputSequenceCoreEditor
 //------------------------------------------------------
 
 const FName AssetToolsModuleName("AssetTools");
 
-void FEnhancedInputSequenceEditorModule::StartupModule()
+void FInputSequenceCoreEditor::StartupModule()
 {
 	RegisteredAssetTypeActions.Add(MakeShared<FAssetTypeActions_InputSequence>());
 
@@ -2201,7 +2191,7 @@ void FEnhancedInputSequenceEditorModule::StartupModule()
 	FEdGraphUtilities::RegisterVisualPinConnectionFactory(ISGraphPinConnectionFactory);
 }
 
-void FEnhancedInputSequenceEditorModule::ShutdownModule()
+void FInputSequenceCoreEditor::ShutdownModule()
 {
 	FEdGraphUtilities::UnregisterVisualPinConnectionFactory(ISGraphPinConnectionFactory);
 	ISGraphPinConnectionFactory.Reset();
@@ -2226,4 +2216,4 @@ void FEnhancedInputSequenceEditorModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FEnhancedInputSequenceEditorModule, EnhancedInputSequenceEditor)
+IMPLEMENT_MODULE(FInputSequenceCoreEditor, InputSequenceCoreEditor)
