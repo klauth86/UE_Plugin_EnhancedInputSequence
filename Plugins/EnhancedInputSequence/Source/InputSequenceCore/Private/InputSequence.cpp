@@ -23,14 +23,14 @@ UWorld* UInputSequenceEvent::GetWorld() const
 FInputActionInfo::FInputActionInfo()
 {
 	TriggerEvent = ETriggerEvent::None;
-	Flags = EFlags::NONE;
+	bIsPassed = 0;
 	WaitTime = 0;
 	WaitTimeLeft = 0;
 }
 
 void FInputActionInfo::Reset()
 {
-	Flags &= ~EFlags_InputActionInfo::PASSED;
+	bIsPassed = 0;
 	WaitTimeLeft = WaitTime;
 }
 
@@ -40,9 +40,9 @@ void FInputActionInfo::Reset()
 
 void FInputSequenceState::Reset()
 {
-	for (TPair<FSoftObjectPath, FInputActionInfo>& InputActionInfo : InputActionInfos)
+	for (TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
 	{
-		InputActionInfo.Value.Reset();
+		inputActionInfoEntry.Value.Reset();
 	}
 }
 
@@ -50,7 +50,7 @@ void FInputSequenceState::Reset()
 // UInputSequence
 //------------------------------------------------------
 
-void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources)
+void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, const TMap<UInputAction*, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources)
 {
 	if (ActiveStates.IsEmpty())
 	{
@@ -64,7 +64,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 		FInputSequenceState key;
 		if (FInputSequenceState* state = States.FindByHash(GetTypeHash(stateGuid), key))
 		{
-			if ((state->Flags & EFlags_State::IS_RESET_STATE) != EFlags::NONE)
+			if (state->bIsResetState)
 			{
 				RequestReset(stateGuid, state->RequestKey, true);
 			}
@@ -152,7 +152,7 @@ void UInputSequence::MakeTransition(const FGuid& fromStateGuid, const TSet<FGuid
 
 void UInputSequence::PassState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls)
 {
-	check((state->Flags & EFlags_State::IS_RESET_STATE) == EFlags::NONE);
+	check(!state->bIsResetState);
 
 	if (ActiveStates.Contains(state->StateGuid))
 	{
@@ -170,7 +170,7 @@ void UInputSequence::PassState(FInputSequenceState* state, TArray<FEventRequest>
 
 void UInputSequence::EnterState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls)
 {
-	check((state->Flags & EFlags_State::IS_RESET_STATE) == EFlags::NONE);
+	check(!state->bIsResetState);
 
 	if (!ActiveStates.Contains(state->StateGuid))
 	{
@@ -188,54 +188,50 @@ void UInputSequence::EnterState(FInputSequenceState* state, TArray<FEventRequest
 	}
 }
 
-EConsumeInputResponse UInputSequence::OnInput(const TMap<FSoftObjectPath, ETriggerEvent>& actionStateDatas, FInputSequenceState* state)
+EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateDatas, FInputSequenceState* state)
 {
 	// Check Wait Time
 
-	for (const TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfo : state->InputActionInfos)
+	for (const TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
 	{
-		const FSoftObjectPath inputActionPath = inputActionInfo.Key;
-
-		if (inputActionInfo.Value.WaitTimeLeft > 0)
+		if (inputActionInfoEntry.Value.WaitTimeLeft > 0)
 		{
-			if (!actionStateDatas.Contains(inputActionPath))
+			if (!actionStateDatas.Contains(inputActionInfoEntry.Key))
 			{
 				return EConsumeInputResponse::RESET;
 			}
-			else if (*actionStateDatas.Find(inputActionPath) != inputActionInfo.Value.TriggerEvent)
+			else if (*actionStateDatas.Find(inputActionInfoEntry.Key) != inputActionInfoEntry.Value.TriggerEvent)
 			{
 				return EConsumeInputResponse::RESET;
 			}
 		}
 	}
 
-	for (const TPair<FSoftObjectPath, ETriggerEvent>& actionStateData : actionStateDatas)
-	{
-		const FSoftObjectPath inputActionPath = actionStateData.Key;
-		
+	for (const TPair<UInputAction*, ETriggerEvent>& actionStateData : actionStateDatas)
+	{		
 		const ETriggerEvent triggerEvent = actionStateData.Value;
 
-		if (state->InputActionInfos.Contains(inputActionPath))
+		if (state->InputActionInfos.Contains(actionStateData.Key))
 		{
-			FInputActionInfo* InputActionInfo = state->InputActionInfos.Find(inputActionPath);
+			FInputActionInfo* inputActionInfo = state->InputActionInfos.Find(actionStateData.Key);
 
-			// Precise Match
+			 // Precise Match
 
-			if ((InputActionInfo->Flags & EFlags_InputActionInfo::REQUIRE_PRECISE_MATCH) != EFlags::NONE)
+			if (inputActionInfo->RequirePreciseMatch())
 			{
-				if (InputActionInfo->TriggerEvent != triggerEvent)
+				if (inputActionInfo->TriggerEvent != triggerEvent)
 				{
 					return EConsumeInputResponse::RESET;
 				}
 			}
 
-			if (InputActionInfo->TriggerEvent == triggerEvent && InputActionInfo->WaitTimeLeft == 0)
+			if (inputActionInfo->TriggerEvent == triggerEvent && inputActionInfo->WaitTimeLeft == 0)
 			{
-				InputActionInfo->Flags |= EFlags_InputActionInfo::PASSED;
+				inputActionInfo->SetIsPassed();
 
-				for (const TPair<FSoftObjectPath, FInputActionInfo>& otherInputActionInfo : state->InputActionInfos)
+				for (const TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
 				{
-					if ((otherInputActionInfo.Value.Flags & EFlags_InputActionInfo::PASSED) == EFlags::NONE)
+					if (!inputActionInfoEntry.Value.IsPassed())
 					{
 						return EConsumeInputResponse::NONE;
 					}
@@ -253,11 +249,11 @@ EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, FInputSequen
 {
 	// Tick Input Action Infos
 
-	for (TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfo : state->InputActionInfos)
+	for (TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
 	{
-		if (inputActionInfo.Value.WaitTimeLeft > 0)
+		if (inputActionInfoEntry.Value.WaitTimeLeft > 0)
 		{
-			inputActionInfo.Value.WaitTimeLeft = FMath::Max(inputActionInfo.Value.WaitTimeLeft - deltaTime, 0);
+			inputActionInfoEntry.Value.WaitTimeLeft = FMath::Max(inputActionInfoEntry.Value.WaitTimeLeft - deltaTime, 0);
 		}
 	}
 

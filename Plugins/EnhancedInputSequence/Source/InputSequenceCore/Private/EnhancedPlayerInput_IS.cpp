@@ -7,13 +7,12 @@ void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& 
 {
 	Super::ProcessInputStack(InputComponentStack, DeltaTime, bGamePaused);
 
-	TMap<FSoftObjectPath, ETriggerEvent> enhancedActionInputStack;
+	TMap<UInputAction*, ETriggerEvent> enhancedActionInputStack;
 
 	for (const FEnhancedActionKeyMapping& enhancedActionMapping : GetEnhancedActionMappings())
 	{
-		const FSoftObjectPath inputActionPath = FSoftObjectPath(enhancedActionMapping.Action);
 		const FInputActionInstance* inputActionInstance = FindActionInstanceData(enhancedActionMapping.Action);
-		enhancedActionInputStack.Add(inputActionPath, inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
+		enhancedActionInputStack.Add(const_cast<UInputAction*>(enhancedActionMapping.Action.Get()), inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
 	}
 
 	TArray<FEventRequest> eventRequests;

@@ -4,8 +4,8 @@
 
 #include "Kismet/KismetTextLibrary.h"
 
-#include "Factory_InputSequence.h"
-#include "AssetTypeActions_InputSequence.h"
+#include "Factories.h"
+#include "AssetTypeActions.h"
 #include "AssetTypeCategories.h"
 #include "InputSequence.h"
 
@@ -1230,14 +1230,14 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(entryGraphNode->NodeGuid));
 				FInputSequenceState& state = inputSequence->GetStates()[stateId];
 				state.StateGuid = entryGraphNode->NodeGuid;
-				state.Flags = EFlags_State::IS_ENTRY_STATE;
 			}
 			else if (UISGraphNode_Reset* resetGraphNode = Cast<UISGraphNode_Reset>(node))
 			{
 				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(resetGraphNode->NodeGuid));
 				FInputSequenceState& state = inputSequence->GetStates()[stateId];
 				state.StateGuid = resetGraphNode->NodeGuid;
-				state.Flags = EFlags_State::IS_RESET_STATE;
+				state.RequestKey = resetGraphNode->RequestKey;
+				state.bIsResetState = 1;
 			}
 			else if (UISGraphNode_Input* inputGraphNode = Cast<UISGraphNode_Input>(node))
 			{
@@ -1251,14 +1251,9 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 					{
 						if (UInputAction* inputAction = Cast<UInputAction>(pin->DefaultObject))
 						{
-							FInputActionInfo& inputCheck = state.InputActionInfos.Emplace(FSoftObjectPath(inputAction));
+							FInputActionInfo& inputCheck = state.InputActionInfos.Emplace(inputAction);
 							inputCheck.TriggerEvent = static_cast<ETriggerEvent>(FCString::Atoi(*pin->DefaultValue));
-							
-							if (pin->PinToolTip == trueFlag)
-							{
-								inputCheck.Flags |= EFlags_InputActionInfo::REQUIRE_PRECISE_MATCH;
-							}
-							
+							inputCheck.SetRequirePreciseMatch(pin->PinToolTip == trueFlag);							
 							inputCheck.WaitTime = FMath::RoundHalfToEven(pin->DefaultTextValue.IsEmpty() ? 0.f : FCString::Atof(*pin->DefaultTextValue.ToString()));
 						}
 					}
@@ -1283,17 +1278,8 @@ void UISGraph::PreSave(FObjectPreSaveContext SaveContext)
 				}
 
 				state.RequestKey = inputGraphNode->RequestKey;
-
-				if (inputGraphNode->bOverrideResetTime)
-				{
-					state.Flags |= EFlags_State::OVERRIDE_HAS_RESET_TIME;
-					
-					if (state.ResetTime > 0)
-					{
-						state.Flags |= EFlags_State::HAS_RESET_TIME;
-					}
-				}
-
+				state.bOverrideHasResetTime = inputGraphNode->bOverrideResetTime;
+				state.bHasResetTime = inputGraphNode->bOverrideResetTime & (state.ResetTime > 0);
 				state.ResetTime = inputGraphNode->ResetTime;
 			}
 			else if (UISGraphNode_Hub* hubGraphNode = Cast<UISGraphNode_Hub>(node))
@@ -2173,6 +2159,26 @@ UObject* UFactory_InputSequence::FactoryCreateNew(UClass* InClass, UObject* InPa
 FText UFactory_InputSequence::GetDisplayName() const { return LOCTEXT("UFactory_InputSequence_DisplayName", "Input Sequence"); }
 
 uint32 UFactory_InputSequence::GetMenuCategories() const { return EAssetTypeCategories::Misc; }
+
+//------------------------------------------------------
+// UFactory_RequestKey
+//------------------------------------------------------
+
+UFactory_RequestKey::UFactory_RequestKey(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+{
+	bCreateNew = true;
+	bEditAfterNew = true;
+	SupportedClass = URequestKey::StaticClass();
+}
+
+UObject* UFactory_RequestKey::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
+{
+	return NewObject<URequestKey>(InParent, InClass, InName, Flags);
+}
+
+FText UFactory_RequestKey::GetDisplayName() const { return LOCTEXT("UFactory_RequestKey_DisplayName", "Request Key (for Input Sequence)"); }
+
+uint32 UFactory_RequestKey::GetMenuCategories() const { return EAssetTypeCategories::Misc; }
 
 //------------------------------------------------------
 // FInputSequenceCoreEditor

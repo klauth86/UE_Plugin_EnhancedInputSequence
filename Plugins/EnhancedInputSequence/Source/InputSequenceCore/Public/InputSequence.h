@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2023 Pentangle Studio under EULA https://www.unrealengine.com/en-US/eula/unreal
 
 #pragma once
 
@@ -13,27 +13,6 @@ enum class EConsumeInputResponse :uint8
 	NONE,
 	RESET,
 	PASSED
-};
-
-namespace EFlags
-{
-	const uint8 NONE = 0;
-}
-
-namespace EFlags_State
-{
-	const uint8 OVERRIDE_HAS_RESET_TIME = 1;
-	const uint8 HAS_RESET_TIME = 2;
-
-	const uint8 IS_ENTRY_STATE = 64;
-	const uint8 IS_RESET_STATE = 128;
-};
-
-namespace EFlags_InputActionInfo
-{
-	const uint8 REQUIRE_PRECISE_MATCH = 1;
-
-	const uint8 PASSED = 128;
 };
 
 //------------------------------------------------------
@@ -147,13 +126,22 @@ public:
 
 	void Reset();
 
-	bool IsPassed() const { return (Flags & EFlags_InputActionInfo::PASSED) != EFlags::NONE; }
+	bool IsPassed() const { return bIsPassed; }
+
+	void SetIsPassed() { bIsPassed = 1; }
+
+	bool RequirePreciseMatch() const { return bRequirePreciseMatch; }
+
+	void SetRequirePreciseMatch(bool requirePreciseMatch) { bRequirePreciseMatch = requirePreciseMatch; }
 
 	UPROPERTY()
 	ETriggerEvent TriggerEvent;
 
 	UPROPERTY()
-	uint8 Flags;
+	uint8 bIsPassed : 1;
+
+	UPROPERTY()
+	uint8 bRequirePreciseMatch : 1;
 
 	UPROPERTY()
 	float WaitTime;
@@ -182,7 +170,7 @@ public:
 	FGuid StateGuid;
 
 	UPROPERTY()
-	TMap<FSoftObjectPath, FInputActionInfo> InputActionInfos;
+	TMap<UInputAction*, FInputActionInfo> InputActionInfos;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
@@ -195,7 +183,14 @@ public:
 	TObjectPtr<URequestKey> RequestKey;
 
 	UPROPERTY()
-	uint8 Flags;
+	uint8 bOverrideHasResetTime : 1;
+
+	UPROPERTY()
+	uint8 bHasResetTime : 1;
+
+	UPROPERTY()
+	uint8 bIsResetState : 1;
+
 	UPROPERTY()
 	float ResetTime;
 
@@ -243,7 +238,7 @@ public:
 	* @param outResetRequests		Collection of Reset Requests, that will be filled
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventRequests, TArray<FResetRequest>& outResetRequests);
+	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<UInputAction*, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventRequests, TArray<FResetRequest>& outResetRequests);
 
 	/**
 	* Requests reset for Input Sequence
@@ -279,7 +274,7 @@ protected:
 
 	void PassState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls);
 
-	EConsumeInputResponse OnInput(const TMap<FSoftObjectPath, ETriggerEvent>& actionStateData, FInputSequenceState* state);
+	EConsumeInputResponse OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateData, FInputSequenceState* state);
 
 	EConsumeInputResponse OnTick(const float deltaTime, FInputSequenceState* state);
 

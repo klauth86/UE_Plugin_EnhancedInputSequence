@@ -124,4 +124,7 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	virtual FText GetTooltipText() const override;
+
+	UPROPERTY(EditAnywhere, Category = "Context")
+	TObjectPtr<URequestKey> RequestKey;
 };
