@@ -92,7 +92,10 @@ void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls)
 		outEventCalls[emplacedIndex].InputSequenceEvent = enterEvent;
 	}
 
-	Reset();
+	for (TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
+	{
+		inputActionInfoEntry.Value.Reset();
+	}
 }
 
 void UInputSequenceState_Input::OnPass(TArray<FEventRequest>& outEventCalls)
@@ -114,14 +117,6 @@ void UInputSequenceState_Input::OnReset(TArray<FEventRequest>& outEventCalls)
 		outEventCalls[emplacedIndex].State = this;
 		outEventCalls[emplacedIndex].RequestKey = RequestKey;
 		outEventCalls[emplacedIndex].InputSequenceEvent = resetEvent;
-	}
-}
-
-void UInputSequenceState_Input::Reset()
-{
-	for (TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
-	{
-		inputActionInfoEntry.Value.Reset();
 	}
 }
 

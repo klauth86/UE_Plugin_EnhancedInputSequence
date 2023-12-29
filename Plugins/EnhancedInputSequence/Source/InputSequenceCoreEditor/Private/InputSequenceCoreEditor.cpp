@@ -1122,7 +1122,7 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 
 			if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(NodeTemplate))
 			{
-				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+				if (UInputSequenceState_Reset* state = NewObject<UInputSequenceState_Reset>(inputSequence))
 				{
 					inputSequence->GetStates().Add(state);
 					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
@@ -1138,7 +1138,7 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 			}
 			else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(NodeTemplate))
 			{
-				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+				if (UInputSequenceState_Hub* state = NewObject<UInputSequenceState_Hub>(inputSequence))
 				{
 					inputSequence->GetStates().Add(state);
 					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
@@ -1232,7 +1232,7 @@ void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) cons
 
 	if (UInputSequence* inputSequence = Graph.GetTypedOuter<UInputSequence>())
 	{
-		if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+		if (UInputSequenceState_Base* state = NewObject<UInputSequenceState_Base>(inputSequence))
 		{
 			inputSequence->GetEntryStates().Add(state);
 			inputSequence->NodeToStateMapping.Add(entryGraphNode->NodeGuid, state);

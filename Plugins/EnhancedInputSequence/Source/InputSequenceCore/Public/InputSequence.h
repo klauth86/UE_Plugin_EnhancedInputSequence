@@ -131,7 +131,7 @@ public:
 // UInputSequenceState_Base
 //------------------------------------------------------
 
-UCLASS(ABSTRACT)
+UCLASS()
 class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 {
 	GENERATED_UCLASS_BODY()
@@ -189,8 +189,6 @@ public:
 	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) override;
 	virtual void OnPass(TArray<FEventRequest>& outEventCalls) override;
 	virtual void OnReset(TArray<FEventRequest>& outEventCalls) override;
-
-	void Reset();
 
 	UPROPERTY()
 	TMap<UInputAction*, FInputActionInfo> InputActionInfos;
