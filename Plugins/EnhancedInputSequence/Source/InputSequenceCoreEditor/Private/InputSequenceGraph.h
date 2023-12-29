@@ -3,16 +3,16 @@
 #pragma once
 
 #include "EdGraph/EdGraph.h"
-#include "ISGraph.generated.h"
+#include "InputSequenceGraph.generated.h"
 
 class UInputSequence;
 
 //------------------------------------------------------
-// UISGraph
+// UInputSequenceGraph
 //------------------------------------------------------
 
 UCLASS()
-class UISGraph : public UEdGraph
+class UInputSequenceGraph : public UEdGraph
 {
 	GENERATED_UCLASS_BODY()
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "EdGraph/EdGraphNode.h"
-#include "ISGraphNodes.generated.h"
+#include "InputSequenceGraphNodes.generated.h"
 
 class URequestKey;
 class UInputAction;
@@ -11,11 +11,11 @@ class UInputSequenceEvent;
 enum class ETriggerEvent :uint8;
 
 //------------------------------------------------------
-// UISGraphNode_Entry
+// UInputSequenceGraphNode_Entry
 //------------------------------------------------------
 
 UCLASS()
-class UISGraphNode_Entry : public UEdGraphNode
+class UInputSequenceGraphNode_Entry : public UEdGraphNode
 {
 	GENERATED_BODY()
 
@@ -35,11 +35,11 @@ public:
 };
 
 //------------------------------------------------------
-// UISGraphNode_Input
+// UInputSequenceGraphNode_Input
 //------------------------------------------------------
 
 UCLASS()
-class UISGraphNode_Dynamic : public UEdGraphNode
+class UInputSequenceGraphNode_Dynamic : public UEdGraphNode
 {
 	GENERATED_BODY()
 
@@ -51,11 +51,11 @@ public:
 };
 
 //------------------------------------------------------
-// UISGraphNode_Input
+// UInputSequenceGraphNode_Input
 //------------------------------------------------------
 
 UCLASS()
-class UISGraphNode_Input : public UISGraphNode_Dynamic
+class UInputSequenceGraphNode_Input : public UInputSequenceGraphNode_Dynamic
 {
 	GENERATED_UCLASS_BODY()
 
@@ -87,11 +87,11 @@ public:
 };
 
 //------------------------------------------------------
-// UISGraphNode_Hub
+// UInputSequenceGraphNode_Hub
 //------------------------------------------------------
 
 UCLASS()
-class UISGraphNode_Hub : public UISGraphNode_Dynamic
+class UInputSequenceGraphNode_Hub : public UInputSequenceGraphNode_Dynamic
 {
 	GENERATED_BODY()
 
@@ -107,11 +107,11 @@ public:
 };
 
 //------------------------------------------------------
-// UISGraphNode_Reset
+// UInputSequenceGraphNode_Reset
 //------------------------------------------------------
 
 UCLASS()
-class UISGraphNode_Reset : public UEdGraphNode
+class UInputSequenceGraphNode_Reset : public UEdGraphNode
 {
 	GENERATED_BODY()
 

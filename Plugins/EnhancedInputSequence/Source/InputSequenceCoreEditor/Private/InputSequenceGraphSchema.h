@@ -4,51 +4,51 @@
 
 #include "EdGraph/EdGraphSchema.h"
 #include "EdGraphUtilities.h"
-#include "ISGraphSchema.generated.h"
+#include "InputSequenceGraphSchema.generated.h"
 
 class UInputAction;
 
 //------------------------------------------------------
-// FISGraphNodeFactory
+// FInputSequenceGraphNodeFactory
 //------------------------------------------------------
 
-struct FISGraphNodeFactory : public FGraphPanelNodeFactory
+struct FInputSequenceGraphNodeFactory : public FGraphPanelNodeFactory
 {
 	virtual TSharedPtr<SGraphNode> CreateNode(UEdGraphNode* InNode) const override;
 };
 
 //------------------------------------------------------
-// FISGraphPinFactory
+// FInputSequenceGraphPinFactory
 //------------------------------------------------------
 
-struct FISGraphPinFactory : public FGraphPanelPinFactory
+struct FInputSequenceGraphPinFactory : public FGraphPanelPinFactory
 {
 public:
 	virtual TSharedPtr<class SGraphPin> CreatePin(class UEdGraphPin* Pin) const override;
 };
 
 //------------------------------------------------------
-// FISGraphPinConnectionFactory
+// FInputSequenceGraphPinConnectionFactory
 //------------------------------------------------------
 
-struct FISGraphPinConnectionFactory : public FGraphPanelPinConnectionFactory
+struct FInputSequenceGraphPinConnectionFactory : public FGraphPanelPinConnectionFactory
 {
 public:
 	virtual FConnectionDrawingPolicy* CreateConnectionPolicy(const UEdGraphSchema* Schema, int32 InBackLayerID, int32 InFrontLayerID, float ZoomFactor, const class FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const override;
 };
 
 //------------------------------------------------------
-// FISGraphSchemaAction_NewComment
+// FInputSequenceGraphSchemaAction_NewComment
 //------------------------------------------------------
 
 USTRUCT()
-struct FISGraphSchemaAction_NewComment : public FEdGraphSchemaAction
+struct FInputSequenceGraphSchemaAction_NewComment : public FEdGraphSchemaAction
 {
 	GENERATED_BODY();
 
-	FISGraphSchemaAction_NewComment() : FEdGraphSchemaAction() {}
+	FInputSequenceGraphSchemaAction_NewComment() : FEdGraphSchemaAction() {}
 
-	FISGraphSchemaAction_NewComment(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
+	FInputSequenceGraphSchemaAction_NewComment(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping)
 	{}
 
@@ -58,19 +58,19 @@ struct FISGraphSchemaAction_NewComment : public FEdGraphSchemaAction
 };
 
 //------------------------------------------------------
-// FISGraphSchemaAction_NewNode
+// FInputSequenceGraphSchemaAction_NewNode
 //------------------------------------------------------
 
 USTRUCT()
-struct FISGraphSchemaAction_NewNode : public FEdGraphSchemaAction
+struct FInputSequenceGraphSchemaAction_NewNode : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
 	UEdGraphNode* NodeTemplate;
 
-	FISGraphSchemaAction_NewNode() : FEdGraphSchemaAction(), NodeTemplate(nullptr) {}
+	FInputSequenceGraphSchemaAction_NewNode() : FEdGraphSchemaAction(), NodeTemplate(nullptr) {}
 
-	FISGraphSchemaAction_NewNode(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
+	FInputSequenceGraphSchemaAction_NewNode(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping), NodeTemplate(nullptr)
 	{}
 
@@ -80,19 +80,19 @@ struct FISGraphSchemaAction_NewNode : public FEdGraphSchemaAction
 };
 
 //------------------------------------------------------
-// FISGraphSchemaAction_AddPin
+// FInputSequenceGraphSchemaAction_AddPin
 //------------------------------------------------------
 
 USTRUCT()
-struct FISGraphSchemaAction_AddPin : public FEdGraphSchemaAction
+struct FInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
 	TObjectPtr<UInputAction> InputAction;
 
-	FISGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputAction(nullptr) {}
+	FInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputAction(nullptr) {}
 
-	FISGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping, int32 InSectionID)
+	FInputSequenceGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping, int32 InSectionID)
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping, FText::GetEmpty(), InSectionID), InputAction(nullptr)
 	{}
 
@@ -100,11 +100,11 @@ struct FISGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 };
 
 //------------------------------------------------------
-// UISGraphSchema
+// UInputSequenceGraphSchema
 //------------------------------------------------------
 
 UCLASS()
-class UISGraphSchema : public UEdGraphSchema
+class UInputSequenceGraphSchema : public UEdGraphSchema
 {
 	GENERATED_BODY()
 
