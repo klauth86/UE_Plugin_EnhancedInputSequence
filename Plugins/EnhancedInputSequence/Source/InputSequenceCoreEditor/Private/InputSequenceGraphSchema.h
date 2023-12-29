@@ -9,6 +9,16 @@
 class UInputAction;
 
 //------------------------------------------------------
+// UInputSequenceGraph
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraph : public UEdGraph
+{
+	GENERATED_UCLASS_BODY()
+};
+
+//------------------------------------------------------
 // FInputSequenceGraphNodeFactory
 //------------------------------------------------------
 

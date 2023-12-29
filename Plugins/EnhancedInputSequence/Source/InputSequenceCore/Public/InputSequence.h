@@ -36,11 +36,11 @@ struct INPUTSEQUENCECORE_API FResetRequest
 
 public:
 
-	FResetRequest() :StateGuid(FGuid()), RequestKey(nullptr), bResetAsset(0) {}
+	FResetRequest() :State(nullptr), RequestKey(nullptr), bResetAll(0) {}
 
 	/* Requested by State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
-	FGuid StateGuid;
+	TObjectPtr<UInputSequenceState_Input> State;
 
 	/* Requested with Request Key */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
@@ -48,7 +48,7 @@ public:
 
 	/* If true, request will reset all active states */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
-	uint8 bResetAsset : 1;
+	uint8 bResetAll : 1;
 };
 
 //------------------------------------------------------
@@ -62,11 +62,11 @@ struct INPUTSEQUENCECORE_API FEventRequest
 
 public:
 
-	FEventRequest() :StateGuid(FGuid()), RequestKey(nullptr), InputSequenceEvent(nullptr) {}
+	FEventRequest() :State(nullptr), RequestKey(nullptr), InputSequenceEvent(nullptr) {}
 
 	/* Requested by State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
-	FGuid StateGuid;
+	TObjectPtr<UInputSequenceState_Input> State;
 
 	/* Requested with Request Key */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
@@ -89,26 +89,11 @@ class INPUTSEQUENCECORE_API UInputSequenceEvent : public UObject
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, Category = "Input Sequence Event")
-	void Execute(const FGuid& stateGuid, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
+	void Execute(UInputSequenceState_Input* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
 
-	virtual void Execute_Implementation(const FGuid& stateGuid, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
+	virtual void Execute_Implementation(UInputSequenceState_Input* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
 
 	virtual UWorld* GetWorld() const override;
-};
-
-//------------------------------------------------------
-// FInputSequenceState
-//------------------------------------------------------
-
-USTRUCT()
-struct INPUTSEQUENCECORE_API FInputSequenceStateCollection
-{
-	GENERATED_USTRUCT_BODY()
-
-public:
-
-	UPROPERTY()
-	TSet<FGuid> NextStateGuids;
 };
 
 //------------------------------------------------------
@@ -130,18 +115,11 @@ public:
 
 	void SetIsPassed() { bIsPassed = 1; }
 
-	bool RequirePreciseMatch() const { return bRequirePreciseMatch; }
-
-	void SetRequirePreciseMatch(bool requirePreciseMatch) { bRequirePreciseMatch = requirePreciseMatch; }
-
 	UPROPERTY()
 	ETriggerEvent TriggerEvent;
 
 	UPROPERTY()
 	uint8 bIsPassed : 1;
-
-	UPROPERTY()
-	uint8 bRequirePreciseMatch : 1;
 
 	UPROPERTY()
 	float WaitTime;
@@ -150,57 +128,57 @@ public:
 };
 
 //------------------------------------------------------
-// FInputSequenceState
+// UInputSequenceState_Input
 //------------------------------------------------------
 
-USTRUCT()
-struct INPUTSEQUENCECORE_API FInputSequenceState
+UCLASS()
+class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UObject
 {
-	GENERATED_USTRUCT_BODY()
+	GENERATED_UCLASS_BODY()
 
 public:
-
-	FInputSequenceState(uint32 typeHash = INDEX_NONE) { Reset(); }
-
-	bool operator==(const FInputSequenceState& state) const { return state.StateGuid == StateGuid; }
 
 	void Reset();
 
 	UPROPERTY()
-	FGuid StateGuid;
+	TObjectPtr<UInputSequenceState_Input> RootState;
+	UPROPERTY()
+	TSet<TObjectPtr<UInputSequenceState_Input>> NextStates;
 
 	UPROPERTY()
 	TMap<UInputAction*, FInputActionInfo> InputActionInfos;
 
-	UPROPERTY()
+	/* Enter Events for this state */
+	UPROPERTY(EditAnywhere, Category = "Events:")
 	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
-	UPROPERTY()
+	/* Pass Events for this state */
+	UPROPERTY(EditAnywhere, Category = "Events:")
 	TArray<TObjectPtr<UInputSequenceEvent>> PassEvents;
-	UPROPERTY()
+	/* Reset Events for this state */
+	UPROPERTY(EditAnywhere, Category = "Events:")
 	TArray<TObjectPtr<UInputSequenceEvent>> ResetEvents;
 
-	UPROPERTY()
+	/* Request Key for this state */
+	UPROPERTY(EditAnywhere, Category = "Context:")
 	TObjectPtr<URequestKey> RequestKey;
 
-	UPROPERTY()
-	uint8 bOverrideHasResetTime : 1;
+	/* If true, this state will be reset if there will be any unexpected input */
+	UPROPERTY(EditAnywhere, Category = "Input:")
+	uint8 bRequirePreciseMatch : 1;
 
-	UPROPERTY()
+	/* If true, this state will be reset if no any successful steps will be made within some time interval */
+	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (InlineEditConditionToggle))
 	uint8 bHasResetTime : 1;
 
 	UPROPERTY()
 	uint8 bIsResetState : 1;
 
-	UPROPERTY()
+	/* Time interval, after which this state will be reset if no any successful steps will be made within this interval */
+	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
 	float ResetTime;
 
 	float ResetTimeLeft;
-
-	UPROPERTY()
-	FGuid RootStateGuid;
 };
-
-int32 GetTypeHash(const FInputSequenceState& state) { return GetTypeHash(state.StateGuid); }
 
 //------------------------------------------------------
 // UInputSequence
@@ -218,21 +196,20 @@ public:
 	UPROPERTY()
 	UEdGraph* EdGraph;
 
-	TSet<FGuid>& GetEntryStates() { return EntryStates; }
+	UPROPERTY()
+	TMap<FGuid, TObjectPtr<UInputSequenceState_Input>> NodeToStateMapping;
 
-	TSet<FInputSequenceState>& GetStates() { return States; }
+	TSet<TObjectPtr<UInputSequenceState_Input>>& GetEntryStates() { return EntryStates; }
 
-	TMap<FGuid, FInputSequenceStateCollection>& GetTransitions() { return Transitions; }
-
-	bool GetRequirePreciseMatchDefaultValue() const { return bRequirePreciseMatchDefaultValue; }
+	TSet<TObjectPtr<UInputSequenceState_Input>>& GetStates() { return States; }
 
 #endif
 
 	/**
 	* Feed input to Input Sequence and receives Event Requests and Reset Requests as result
 	*
-	* @param deltaTime				Request key
-	* @param bGamePaused			Request key
+	* @param deltaTime				Delta Time
+	* @param bGamePaused			Game Paused flag
 	* @param actionStateData		Collection of Input Actions Trigger Events
 	* @param outEventRequests		Collection of Event Requests, that will be filled
 	* @param outResetRequests		Collection of Reset Requests, that will be filled
@@ -241,7 +218,7 @@ public:
 	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<UInputAction*, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventRequests, TArray<FResetRequest>& outResetRequests);
 
 	/**
-	* Requests reset for Input Sequence
+	* Requests reset for Input Sequence with Request Key
 	*
 	* @param requestKey				Request key
 	*/
@@ -260,55 +237,35 @@ public:
 
 protected:
 
-	void MakeTransition(const FGuid& stateGuid, const TSet<FGuid>& nextStates, TArray<FEventRequest>& outEventCalls);
+	void MakeTransition(const TObjectPtr<UInputSequenceState_Input> fromState, const TSet<TObjectPtr<UInputSequenceState_Input>>& toStates, TArray<FEventRequest>& outEventCalls);
 
-	const TSet<FGuid>& GetTransitions(const FGuid& stateGuid) const
-	{
-		static const TSet<FGuid> emptySet;
-		return Transitions.Contains(stateGuid) ? Transitions[stateGuid].NextStateGuids : emptySet;
-	}
+	void RequestReset(const TObjectPtr<UInputSequenceState_Input> state, const TObjectPtr<URequestKey> requestKey, const bool resetAsset);
 
-	void RequestReset(const FGuid& stateGuid, URequestKey* requestKey, const bool resetAsset);
+	void EnterState(UInputSequenceState_Input* state, TArray<FEventRequest>& outEventCalls);
 
-	void EnterState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls);
+	void PassState(UInputSequenceState_Input* state, TArray<FEventRequest>& outEventCalls);
 
-	void PassState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls);
+	EConsumeInputResponse OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateData, UInputSequenceState_Input* state);
 
-	EConsumeInputResponse OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateData, FInputSequenceState* state);
-
-	EConsumeInputResponse OnTick(const float deltaTime, FInputSequenceState* state);
+	EConsumeInputResponse OnTick(const float deltaTime, UInputSequenceState_Input* state);
 
 	void ProcessResetSources(TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources);
 
-	void ProcessResetSources_Internal(const TSet<FGuid>& statesToReset, TArray<FEventRequest>& outEventCalls);
+	void ProcessResetSources_Internal(const TSet<TObjectPtr<UInputSequenceState_Input>>& statesToReset, TArray<FEventRequest>& outEventCalls);
 
 protected:
 
-	mutable FCriticalSection resetSourcesCS;
-
-	TSet<FGuid> ActiveStates;
+	UPROPERTY()
+	TSet<TObjectPtr<UInputSequenceState_Input>> EntryStates;
 
 	UPROPERTY()
-	TSet<FGuid> EntryStates;
+	TSet<TObjectPtr<UInputSequenceState_Input>> States;
 
-	UPROPERTY()
-	TSet<FInputSequenceState> States;
-
-	UPROPERTY()
-	TMap<FGuid, FInputSequenceStateCollection> Transitions;
-
-	UPROPERTY(Transient)
-	TArray<FResetRequest> ResetSources;
-
-	/* If true, any mismatched input will reset asset to initial state */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence")
-	uint8 bRequirePreciseMatchDefaultValue : 1;
-
-	/* If true, asset will be reset if no any successful steps are made during some time interval */
+	/* If true, any active state will be reset if no any successful steps will be made within some time interval (can be override in state) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (InlineEditConditionToggle))
 	uint8 bHasResetTime : 1;
 
-	/* Time interval, after which asset will be reset to initial state if no any successful steps will be made during that period */
+	/* Time interval, after which any active state will be reset if no any successful steps will be made within this interval (can be override in state) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
 	float ResetTime;
 
@@ -319,6 +276,12 @@ protected:
 	/* If true, active states will continue to tick even if Game is paused (Input Sequence is ticking by OnInput method call) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence")
 	uint8 bTickWhenGamePaused : 1;
+
+	mutable FCriticalSection resetSourcesCS;
+
+	TSet<TObjectPtr<UInputSequenceState_Input>> ActiveStates;
+
+	TArray<FResetRequest> ResetSources;
 
 	TWeakObjectPtr<UWorld> WorldPtr;
 };

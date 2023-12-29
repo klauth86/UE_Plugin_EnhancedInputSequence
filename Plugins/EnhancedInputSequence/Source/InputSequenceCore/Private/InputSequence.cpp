@@ -35,10 +35,32 @@ void FInputActionInfo::Reset()
 }
 
 //------------------------------------------------------
-// FInputSequenceState
+// UInputSequenceState_Input
 //------------------------------------------------------
 
-void FInputSequenceState::Reset()
+UInputSequenceState_Input::UInputSequenceState_Input(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+{
+	RootState = nullptr;
+	NextStates.Empty();
+
+	InputActionInfos.Empty();
+
+	EnterEvents.Empty();
+	PassEvents.Empty();
+	ResetEvents.Empty();
+
+	RequestKey = nullptr;
+
+	bHasResetTime = 0;
+	bRequirePreciseMatch = 0;
+	
+	bIsResetState = 0;
+
+	ResetTime = 0;
+	ResetTimeLeft = 0;
+}
+
+void UInputSequenceState_Input::Reset()
 {
 	for (TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
 	{
@@ -54,50 +76,45 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 {
 	if (ActiveStates.IsEmpty())
 	{
-		ActiveStates = EntryStates;
+		for (const TObjectPtr<UInputSequenceState_Input>& entryState : EntryStates)
+		{
+			MakeTransition(nullptr, entryState->NextStates, outEventCalls);
+		}
 	}
 
-	const TSet<FGuid> prevActiveStates = ActiveStates;
+	const TSet<TObjectPtr<UInputSequenceState_Input>> prevActiveStates = ActiveStates;
 
-	for (const FGuid& stateGuid : prevActiveStates)
+	for (const TObjectPtr<UInputSequenceState_Input>& prevActiveState : prevActiveStates)
 	{
-		FInputSequenceState key;
-		if (FInputSequenceState* state = States.FindByHash(GetTypeHash(stateGuid), key))
+		if (UInputSequenceState_Input* state = prevActiveState.Get())
 		{
 			if (state->bIsResetState)
 			{
-				RequestReset(stateGuid, state->RequestKey, true);
+				RequestReset(state, state->RequestKey, true);
+			}
+			else if (state->InputActionInfos.IsEmpty())
+			{
+				MakeTransition(state, state->NextStates, outEventCalls);
 			}
 			else
 			{
 				if (!bGamePaused || bStepWhenGamePaused)
 				{
-					const EConsumeInputResponse consumeInputResponse = OnInput(actionStateData, state);
-
-					if (consumeInputResponse == EConsumeInputResponse::RESET)
+					switch (OnInput(actionStateData, state))
 					{
-						RequestReset(stateGuid, state->RequestKey, false);
-					}
-					else if (consumeInputResponse == EConsumeInputResponse::PASSED)
-					{
-						MakeTransition(stateGuid, GetTransitions(stateGuid), outEventCalls);
+					case EConsumeInputResponse::RESET: RequestReset(state, state->RequestKey, false); break;
+					case EConsumeInputResponse::PASSED: MakeTransition(state, state->NextStates, outEventCalls); break;
+					default: check(0); break;
 					}
 				}
 
 				if (!bGamePaused || bTickWhenGamePaused)
 				{
-					if (ActiveStates.Contains(stateGuid)) // Tick on states that already were active before this frame
+					switch (OnTick(deltaTime, state))
 					{
-						const EConsumeInputResponse tickResponse = OnTick(deltaTime, state);
-
-						if (tickResponse == EConsumeInputResponse::RESET)
-						{
-							RequestReset(stateGuid, state->RequestKey, false);
-						}
-						else if (tickResponse == EConsumeInputResponse::PASSED)
-						{
-							MakeTransition(stateGuid, GetTransitions(stateGuid), outEventCalls);
-						}
+					case EConsumeInputResponse::RESET: RequestReset(state, state->RequestKey, false); break;
+					case EConsumeInputResponse::PASSED: MakeTransition(state, state->NextStates, outEventCalls); break;
+					default: check(0); break;
 					}
 				}
 			}
@@ -112,83 +129,82 @@ void UInputSequence::RequestReset(URequestKey* requestKey)
 	FScopeLock Lock(&resetSourcesCS);
 
 	int32 emplacedIndex = ResetSources.Emplace();
-	ResetSources[emplacedIndex].StateGuid.Invalidate();
+	ResetSources[emplacedIndex].State = nullptr;
 	ResetSources[emplacedIndex].RequestKey = requestKey;
-	ResetSources[emplacedIndex].bResetAsset = true;
+	ResetSources[emplacedIndex].bResetAll = true;
 }
 
-void UInputSequence::RequestReset(const FGuid& stateGuid, URequestKey* requestKey, const bool resetAsset)
+void UInputSequence::RequestReset(const TObjectPtr<UInputSequenceState_Input> state, const TObjectPtr<URequestKey> requestKey, const bool resetAll)
 {
 	FScopeLock Lock(&resetSourcesCS);
 
 	int32 emplacedIndex = ResetSources.Emplace();
-	ResetSources[emplacedIndex].StateGuid = stateGuid;
+	ResetSources[emplacedIndex].State = state;
 	ResetSources[emplacedIndex].RequestKey = requestKey;
-	ResetSources[emplacedIndex].bResetAsset = resetAsset;
+	ResetSources[emplacedIndex].bResetAll = resetAll;
 
-	ActiveStates.Remove(stateGuid);
+	ActiveStates.Remove(state);
 }
 
-void UInputSequence::MakeTransition(const FGuid& fromStateGuid, const TSet<FGuid>& toStateGuids, TArray<FEventRequest>& outEventCalls)
+void UInputSequence::MakeTransition(const TObjectPtr<UInputSequenceState_Input> fromState, const TSet<TObjectPtr<UInputSequenceState_Input>>& toStates, TArray<FEventRequest>& outEventCalls)
 {
-	check(toStateGuids.Num() > 0);
+	check(toStates.Num() > 0);
 
-	FInputSequenceState key;
-	if (FInputSequenceState* fromState = States.FindByHash(GetTypeHash(fromStateGuid), key))
+	if (UInputSequenceState_Input* state = fromState.Get())
 	{
 		PassState(fromState, outEventCalls);
 	}
 
-	for (const FGuid& toStateGuid : toStateGuids)
+	for (const TObjectPtr<UInputSequenceState_Input>& toState : toStates)
 	{
-		if (FInputSequenceState* toState = States.FindByHash(GetTypeHash(toStateGuid), key))
+		if (UInputSequenceState_Input* state = toState.Get())
 		{
 			EnterState(toState, outEventCalls);
 
-			if (toState->InputActionInfos.IsEmpty()) MakeTransition(toStateGuid, GetTransitions(toStateGuid), outEventCalls); // Jump through empty states
+			if (toState->InputActionInfos.IsEmpty()) MakeTransition(toState, toState->NextStates, outEventCalls); // Jump through empty states
 		}
 	}
 }
 
-void UInputSequence::PassState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls)
+void UInputSequence::PassState(UInputSequenceState_Input* state, TArray<FEventRequest>& outEventCalls)
 {
 	check(!state->bIsResetState);
 
-	if (ActiveStates.Contains(state->StateGuid))
+	if (ActiveStates.Contains(state))
 	{
-		ActiveStates.Remove(state->StateGuid);
+		ActiveStates.Remove(state);
 
 		for (const TObjectPtr<UInputSequenceEvent>& passEvent : state->PassEvents)
 		{
 			int32 emplacedIndex = outEventCalls.Emplace();
-			outEventCalls[emplacedIndex].StateGuid = state->StateGuid;
+			outEventCalls[emplacedIndex].State = state;
 			outEventCalls[emplacedIndex].RequestKey = state->RequestKey;
 			outEventCalls[emplacedIndex].InputSequenceEvent = passEvent;
 		}
 	}
 }
 
-void UInputSequence::EnterState(FInputSequenceState* state, TArray<FEventRequest>& outEventCalls)
+void UInputSequence::EnterState(UInputSequenceState_Input* state, TArray<FEventRequest>& outEventCalls)
 {
 	check(!state->bIsResetState);
 
-	if (!ActiveStates.Contains(state->StateGuid))
+	if (!ActiveStates.Contains(state))
 	{
 		for (const TObjectPtr<UInputSequenceEvent>& enterEvent : state->EnterEvents)
 		{
 			int32 emplacedIndex = outEventCalls.Emplace();
-			outEventCalls[emplacedIndex].StateGuid = state->StateGuid;
+			outEventCalls[emplacedIndex].State = state;
 			outEventCalls[emplacedIndex].RequestKey = state->RequestKey;
 			outEventCalls[emplacedIndex].InputSequenceEvent = enterEvent;
 		}
 
 		state->Reset();
 
-		ActiveStates.Add(state->StateGuid);
+		ActiveStates.Add(state);
 	}
 }
 
-EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateDatas, FInputSequenceState* state)
+EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateDatas, UInputSequenceState_Input* state)
 {
 	// Check Wait Time
 
@@ -215,16 +231,6 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 		{
 			FInputActionInfo* inputActionInfo = state->InputActionInfos.Find(actionStateData.Key);
 
-			 // Precise Match
-
-			if (inputActionInfo->RequirePreciseMatch())
-			{
-				if (inputActionInfo->TriggerEvent != triggerEvent)
-				{
-					return EConsumeInputResponse::RESET;
-				}
-			}
-
 			if (inputActionInfo->TriggerEvent == triggerEvent && inputActionInfo->WaitTimeLeft == 0)
 			{
 				inputActionInfo->SetIsPassed();
@@ -245,7 +251,7 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 	return EConsumeInputResponse::NONE;
 }
 
-EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, FInputSequenceState* state)
+EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, UInputSequenceState_Input* state)
 {
 	// Tick Input Action Infos
 
@@ -275,7 +281,7 @@ EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, FInputSequen
 void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources)
 {
 	bool resetAll = false;
-	TSet<FGuid> requestStates;
+	TSet<TObjectPtr<UInputSequenceState_Input>> requestingStates;
 
 	{
 		FScopeLock Lock(&resetSourcesCS);
@@ -284,48 +290,47 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 
 		for (const FResetRequest& resetSource : ResetSources)
 		{
-			resetAll |= resetSource.bResetAsset;
+			resetAll |= resetSource.bResetAll;
 			
-			if (!resetSource.bResetAsset) // Request by some state
+			if (!resetSource.bResetAll) // Request by some state
 			{
-				requestStates.FindOrAdd(resetSource.StateGuid);
+				requestingStates.FindOrAdd(resetSource.State);
 			}
 		}
 	}
 
 	if (resetAll)
 	{
-		const TSet<FGuid> prevActiveStates = ActiveStates;
+		const TSet<TObjectPtr<UInputSequenceState_Input>> prevActiveStates = ActiveStates;
 		ProcessResetSources_Internal(prevActiveStates, outEventCalls);
 	}
 	else
 	{
-		ProcessResetSources_Internal(requestStates, outEventCalls);
+		ProcessResetSources_Internal(requestingStates, outEventCalls);
 	}
 }
 
-void UInputSequence::ProcessResetSources_Internal(const TSet<FGuid>& statesToReset, TArray<FEventRequest>& outEventCalls)
+void UInputSequence::ProcessResetSources_Internal(const TSet<TObjectPtr<UInputSequenceState_Input>>& statesToReset, TArray<FEventRequest>& outEventCalls)
 {
-	for (const FGuid& stateGuid : statesToReset)
+	for (const TObjectPtr<UInputSequenceState_Input>& stateToReset : statesToReset)
 	{
-		if (ActiveStates.Contains(stateGuid))
+		if (ActiveStates.Contains(stateToReset))
 		{
-			FInputSequenceState key;
-			if (FInputSequenceState* state = States.FindByHash(GetTypeHash(stateGuid), key))
+			if (UInputSequenceState_Input* state = stateToReset.Get())
 			{
 				// States are reset to NONE state and after that we make transition from NONE state
 
-				ActiveStates.Remove(state->StateGuid);
+				ActiveStates.Remove(state);
 
 				for (const TObjectPtr<UInputSequenceEvent>& resetEvent : state->ResetEvents)
 				{
 					int32 emplacedIndex = outEventCalls.Emplace();
-					outEventCalls[emplacedIndex].StateGuid = state->StateGuid;
+					outEventCalls[emplacedIndex].State = state;
 					outEventCalls[emplacedIndex].RequestKey = state->RequestKey;
 					outEventCalls[emplacedIndex].InputSequenceEvent = resetEvent;
 				}
 
-				MakeTransition(FGuid(), { state->RootStateGuid }, outEventCalls);
+				MakeTransition(nullptr, { state->RootState }, outEventCalls);
 			}
 		}
 	}

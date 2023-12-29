@@ -7,6 +7,7 @@
 
 class URequestKey;
 class UInputAction;
+class UInputSequence;
 class UInputSequenceEvent;
 enum class ETriggerEvent :uint8;
 
@@ -35,11 +36,28 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Input
+// UInputSequenceGraphNode_Base
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Dynamic : public UEdGraphNode
+class UInputSequenceGraphNode_Base : public UEdGraphNode
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual void PrepareForCopying() override;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputSequence> PrevOwningAsset;
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Dynamic
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Dynamic : public UInputSequenceGraphNode_Base
 {
 	GENERATED_BODY()
 
@@ -57,7 +75,7 @@ public:
 UCLASS()
 class UInputSequenceGraphNode_Input : public UInputSequenceGraphNode_Dynamic
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 
 public:
 
@@ -68,22 +86,6 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	virtual FText GetTooltipText() const override;
-
-	UPROPERTY(EditAnywhere, Category="Events")
-	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
-	UPROPERTY(EditAnywhere, Category = "Events")
-	TArray<TObjectPtr<UInputSequenceEvent>> PassEvents;
-	UPROPERTY(EditAnywhere, Category = "Events")
-	TArray<TObjectPtr<UInputSequenceEvent>> ResetEvents;
-
-	UPROPERTY(EditAnywhere, Category = "Context")
-	TObjectPtr<URequestKey> RequestKey;
-
-	UPROPERTY()
-	float ResetTime;
-
-	UPROPERTY()
-	uint8 bOverrideResetTime : 1;
 };
 
 //------------------------------------------------------
@@ -111,7 +113,7 @@ public:
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Reset : public UEdGraphNode
+class UInputSequenceGraphNode_Reset : public UInputSequenceGraphNode_Base
 {
 	GENERATED_BODY()
 
@@ -124,7 +126,4 @@ public:
 	virtual FLinearColor GetNodeTitleColor() const override;
 
 	virtual FText GetTooltipText() const override;
-
-	UPROPERTY(EditAnywhere, Category = "Context")
-	TObjectPtr<URequestKey> RequestKey;
 };

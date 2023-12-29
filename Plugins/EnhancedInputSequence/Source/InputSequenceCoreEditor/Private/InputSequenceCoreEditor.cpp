@@ -11,7 +11,6 @@
 
 #include "InputAction.h"
 
-#include "InputSequenceGraph.h"
 #include "InputSequenceGraphSchema.h"
 #include "InputSequenceGraphNodes.h"
 #include "EdGraphNode_Comment.h"
@@ -310,7 +309,7 @@ protected:
 			}
 		}
 
-		inputActions.Sort([](UInputAction& a, UInputAction& b)->bool { return a.GetFName() < b.GetFName(); });
+		inputActions.Sort([](UInputAction& a, UInputAction& b)->bool { return FNameFastLess().operator()(a.GetFName(), b.GetFName()); });
 
 		TArray<TSharedPtr<FEdGraphSchemaAction>> schemaActions;
 
@@ -398,10 +397,6 @@ protected:
 
 	FSlateFontInfo GetTriggerEventFont(const TSharedPtr<SButton>& buttonPtr, const FString& triggerEventString) const;
 
-	void RequirePreciseMatchStateChanged(ECheckBoxState checkBoxState) const;
-
-	ECheckBoxState RequirePreciseMatch() const;
-
 	void SetWaitTimeValue(const float NewValue) const;
 
 	void SetWaitTimeValueCommited(const float NewValue, ETextCommit::Type CommitType) const { SetWaitTimeValue(NewValue); }
@@ -484,15 +479,6 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		[
 			SNew(SHorizontalBox)
 
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2 * padding, 0, 0, padding)
-			[
-				SNew(SCheckBox).Style(&checkBoxStyle)
-					.Cursor(EMouseCursor::Hand)
-					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_RequirePreciseMatch", "Require precise match"))
-					.OnCheckStateChanged(this, &SGraphPin_Input::RequirePreciseMatchStateChanged)
-					.IsChecked_Raw(this, &SGraphPin_Input::RequirePreciseMatch)
-			]
-
 			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, 0, 0, padding)
 			[
 				SNew(SNumericEntryBox<float>).SpinBoxStyle(&spinBoxStyle)
@@ -526,14 +512,6 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		];
 
 	SetToolTip(SNew(SToolTip_Dummy));
-
-	if (PinObject)
-	{
-		if (UInputSequence* inputSequence = PinObject->GetOwningNode()->GetGraph()->GetTypedOuter<UInputSequence>())
-		{
-			PinObject->PinToolTip = inputSequence->GetRequirePreciseMatchDefaultValue() ? trueFlag : "";
-		}
-	}
 }
 
 FReply SGraphPin_Input::OnClicked_RemovePin() const
@@ -612,27 +590,6 @@ FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const TSharedPtr<SButton>& b
 	return inputEventFontInfo;
 }
 
-void SGraphPin_Input::RequirePreciseMatchStateChanged(ECheckBoxState checkBoxState) const
-{
-	if (PinObject)
-	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::RequirePreciseMatchStateChanged", "Require Precise Match"));
-		PinObject->Modify();
-
-		PinObject->PinToolTip = (checkBoxState == ECheckBoxState::Checked ? trueFlag : "");
-	}
-}
-
-ECheckBoxState SGraphPin_Input::RequirePreciseMatch() const
-{
-	if (PinObject && PinObject->PinToolTip == trueFlag)
-	{
-		return ECheckBoxState::Checked;
-	}
-
-	return ECheckBoxState::Unchecked;
-}
-
 void SGraphPin_Input::SetWaitTimeValue(const float NewValue) const
 {
 	////// TODO
@@ -674,18 +631,6 @@ protected:
 
 	TSharedRef<SWidget> OnGetAddButtonMenuContent();
 
-	void OverrideResetTimeStateChanged(ECheckBoxState checkBoxState) const;
-
-	bool HasOverrideResetTime() const;
-
-	ECheckBoxState OverrideResetTime() const;
-
-	void SetResetTimeValue(const float NewValue) const;
-
-	void SetResetTimeValueCommited(const float NewValue, ETextCommit::Type CommitType) const { SetResetTimeValue(NewValue); }
-
-	TOptional<float> GetResetTimeValue() const;
-
 protected:
 
 	TSharedPtr<SComboButton> AddButton;
@@ -710,7 +655,7 @@ void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalB
 		}
 	}
 
-	orderedPins.Sort([](UEdGraphPin& a, UEdGraphPin& b)->bool { return a.DefaultObject->GetFName() < b.DefaultObject->GetFName(); });
+	orderedPins.Sort([](UEdGraphPin& a, UEdGraphPin& b)->bool { return FNameFastLess().operator()(a.DefaultObject->GetFName(), b.DefaultObject->GetFName()); });
 
 	for (UEdGraphPin* CurPin : orderedPins)
 	{
@@ -720,54 +665,20 @@ void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalB
 		}
 	}
 
-	MainBox->AddSlot().AutoHeight()
+	MainBox->AddSlot().AutoHeight().Padding(padding).HAlign(HAlign_Right)
 		[
-			SNew(SGridPanel).FillColumn(0, 0).FillColumn(1, 1).FillColumn(2, 0)
-
-				+ SGridPanel::Slot(0, 0).Padding(2 * padding, padding)
+			SAssignNew(AddButton, SComboButton)
+				.HasDownArrow(false)
+				.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+				.ForegroundColor(FLinearColor::White)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Cursor(EMouseCursor::Hand)
+				.ToolTipText(LOCTEXT("SInputSequenceGraphNode_Input_Add_ToolTipText", "Click to add new pin"))
+				.OnGetMenuContent(this, &SInputSequenceGraphNode_Input::OnGetAddButtonMenuContent)
+				.ButtonContent()
 				[
-					SNew(SCheckBox).Style(&checkBoxStyle)
-						.Cursor(EMouseCursor::Hand)
-						.ToolTipText(LOCTEXT("SInputSequenceGraphNode_Input_TooltipText_OverrideResetTime", "Override Reset Time"))
-						.OnCheckStateChanged(this, &SInputSequenceGraphNode_Input::OverrideResetTimeStateChanged)
-						.IsChecked_Raw(this, &SInputSequenceGraphNode_Input::OverrideResetTime)
-				]
-
-				+ SGridPanel::Slot(1, 0).Padding(padding)
-				[
-					SNew(SBox).MinDesiredWidth(150)
-						[
-							SNew(SNumericEntryBox<float>).SpinBoxStyle(&spinBoxStyle)
-								.IsEnabled_Raw(this, &SInputSequenceGraphNode_Input::HasOverrideResetTime)
-								.Font(pinFontInfo)
-								.ToolTipText(LOCTEXT("SInputSequenceGraphNode_Input_TooltipText_ResetTime", "Reset Time (sec)"))
-								.AllowSpin(true)
-								.MinValue(0)
-								.MaxValue(10)
-								.MinSliderValue(0)
-								.MaxSliderValue(10)
-								.Delta(0.0f)
-								.Value(this, &SInputSequenceGraphNode_Input::GetResetTimeValue)
-								.OnValueChanged(this, &SInputSequenceGraphNode_Input::SetResetTimeValue)
-								.OnValueCommitted(this, &SInputSequenceGraphNode_Input::SetResetTimeValueCommited)
-						]
-				]
-
-				+ SGridPanel::Slot(2, 0).Padding(padding)
-				[
-					SAssignNew(AddButton, SComboButton)
-						.HasDownArrow(false)
-						.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
-						.ForegroundColor(FLinearColor::White)
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						.Cursor(EMouseCursor::Hand)
-						.ToolTipText(LOCTEXT("SInputSequenceGraphNode_Input_Add_ToolTipText", "Click to add new pin"))
-						.OnGetMenuContent(this, &SInputSequenceGraphNode_Input::OnGetAddButtonMenuContent)
-						.ButtonContent()
-						[
-							SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
-						]
+					SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
 				]
 		];
 }
@@ -779,58 +690,6 @@ TSharedRef<SWidget> SInputSequenceGraphNode_Input::OnGetAddButtonMenuContent()
 	AddButton->SetMenuContentWidgetToFocus(MenuWidget->GetSearchBox());
 
 	return MenuWidget;
-}
-
-void SInputSequenceGraphNode_Input::OverrideResetTimeStateChanged(ECheckBoxState checkBoxState) const
-{
-	if (UInputSequenceGraphNode_Input* dynamicGraphNode = Cast<UInputSequenceGraphNode_Input>(GraphNode))
-	{
-		dynamicGraphNode->bOverrideResetTime = checkBoxState == ECheckBoxState::Checked;
-	}
-}
-
-bool SInputSequenceGraphNode_Input::HasOverrideResetTime() const
-{
-	if (UInputSequenceGraphNode_Input* dynamicGraphNode = Cast<UInputSequenceGraphNode_Input>(GraphNode))
-	{
-		return dynamicGraphNode->bOverrideResetTime;
-	}
-
-	return false;
-}
-
-ECheckBoxState SInputSequenceGraphNode_Input::OverrideResetTime() const
-{
-	if (UInputSequenceGraphNode_Input* dynamicGraphNode = Cast<UInputSequenceGraphNode_Input>(GraphNode))
-	{
-		if (dynamicGraphNode->bOverrideResetTime)
-		{
-			return ECheckBoxState::Checked;
-		}
-	}
-
-	return ECheckBoxState::Unchecked;
-}
-
-void SInputSequenceGraphNode_Input::SetResetTimeValue(const float NewValue) const
-{
-	if (UInputSequenceGraphNode_Input* dynamicGraphNode = Cast<UInputSequenceGraphNode_Input>(GraphNode))
-	{
-		if (dynamicGraphNode->ResetTime != NewValue)
-		{
-			dynamicGraphNode->ResetTime = NewValue;
-		}
-	}
-}
-
-TOptional<float> SInputSequenceGraphNode_Input::GetResetTimeValue() const
-{
-	if (UInputSequenceGraphNode_Input* dynamicGraphNode = Cast<UInputSequenceGraphNode_Input>(GraphNode))
-	{
-		return dynamicGraphNode->ResetTime;
-	}
-
-	return 0;
 }
 
 //------------------------------------------------------
@@ -1206,112 +1065,6 @@ UInputSequenceGraph::UInputSequenceGraph(const FObjectInitializer& ObjectInitial
 	Schema = UInputSequenceGraphSchema::StaticClass();
 }
 
-void UInputSequenceGraph::PreSave(FObjectPreSaveContext SaveContext)
-{
-	Super::PreSave(SaveContext);
-
-	if (UInputSequence* inputSequence = GetTypedOuter<UInputSequence>())
-	{
-		inputSequence->GetEntryStates().Empty();
-		inputSequence->GetStates().Empty();
-
-		TMap<FGuid, TObjectPtr<UEdGraphNode>> nodesMapping;
-
-		for (TObjectPtr<UEdGraphNode>& node : Nodes)
-		{
-			nodesMapping.Add(node->NodeGuid, node);
-
-			if (UInputSequenceGraphNode_Entry* entryGraphNode = Cast<UInputSequenceGraphNode_Entry>(node))
-			{
-				inputSequence->GetEntryStates().Add(entryGraphNode->NodeGuid);
-
-				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(entryGraphNode->NodeGuid));
-				FInputSequenceState& state = inputSequence->GetStates()[stateId];
-				state.StateGuid = entryGraphNode->NodeGuid;
-			}
-			else if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(node))
-			{
-				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(resetGraphNode->NodeGuid));
-				FInputSequenceState& state = inputSequence->GetStates()[stateId];
-				state.StateGuid = resetGraphNode->NodeGuid;
-				state.RequestKey = resetGraphNode->RequestKey;
-				state.bIsResetState = 1;
-			}
-			else if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(node))
-			{
-				FSetElementId stateId = inputSequence->GetStates().Emplace(GetTypeHash(inputGraphNode->NodeGuid));
-				FInputSequenceState& state = inputSequence->GetStates()[stateId];
-				state.StateGuid = inputGraphNode->NodeGuid;
-
-				for (UEdGraphPin* pin : inputGraphNode->Pins)
-				{
-					if (pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Input)
-					{
-						if (UInputAction* inputAction = Cast<UInputAction>(pin->DefaultObject))
-						{
-							FInputActionInfo& inputCheck = state.InputActionInfos.Emplace(inputAction);
-							inputCheck.TriggerEvent = static_cast<ETriggerEvent>(FCString::Atoi(*pin->DefaultValue));
-							inputCheck.SetRequirePreciseMatch(pin->PinToolTip == trueFlag);							
-							inputCheck.WaitTime = FMath::RoundHalfToEven(pin->DefaultTextValue.IsEmpty() ? 0.f : FCString::Atof(*pin->DefaultTextValue.ToString()));
-						}
-					}
-				}
-
-				state.EnterEvents.SetNum(inputGraphNode->EnterEvents.Num());
-				for (const TObjectPtr<UInputSequenceEvent>& Event : inputGraphNode->EnterEvents)
-				{
-					state.EnterEvents.Add(DuplicateObject(Event, InputSequence));
-				}
-
-				state.PassEvents.SetNum(inputGraphNode->PassEvents.Num());
-				for (const TObjectPtr<UInputSequenceEvent>& Event : inputGraphNode->PassEvents)
-				{
-					state.PassEvents.Add(DuplicateObject(Event, InputSequence));
-				}
-
-				state.ResetEvents.SetNum(inputGraphNode->ResetEvents.Num());
-				for (const TObjectPtr<UInputSequenceEvent>& Event : inputGraphNode->ResetEvents)
-				{
-					state.ResetEvents.Add(DuplicateObject(Event, InputSequence));
-				}
-
-				state.RequestKey = inputGraphNode->RequestKey;
-				state.bOverrideHasResetTime = inputGraphNode->bOverrideResetTime;
-				state.bHasResetTime = inputGraphNode->bOverrideResetTime & (state.ResetTime > 0);
-				state.ResetTime = inputGraphNode->ResetTime;
-			}
-			else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(node))
-			{
-				// Hub Nodes are skipped
-			}
-		}
-
-		TQueue<TObjectPtr<UEdGraphNode>> queuedNodes;
-
-		for(const FGuid& entryState : inputSequence->GetEntryStates())
-		{
-			queuedNodes.Enqueue(nodesMapping[entryState]);
-		}
-
-		TSet<TObjectPtr<UEdGraphNode>> processedNodes;
-
-		TObjectPtr<UEdGraphNode> dequeuedNode;
-
-		while (queuedNodes.Dequeue(dequeuedNode))
-		{
-			processedNodes.FindOrAdd(dequeuedNode);
-
-			dequeuedNode->ForEachNodeDirectlyConnected([&queuedNodes, &processedNodes](UEdGraphNode* node)
-				{
-					if (!processedNodes.Contains(node))
-					{
-						queuedNodes.Enqueue(node);
-					}
-				});
-		}
-	}
-}
-
 //------------------------------------------------------
 // FInputSequenceGraphSchemaAction_NewComment
 //------------------------------------------------------
@@ -1362,6 +1115,38 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 		NodeTemplate->NodePosX = Location.X;
 		NodeTemplate->NodePosY = Location.Y;
 		NodeTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
+
+		if (UInputSequence* inputSequence = ParentGraph->GetTypedOuter<UInputSequence>())
+		{
+			inputSequence->Modify();
+
+			if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(NodeTemplate))
+			{
+				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+				{
+					state->bIsResetState = 1;
+
+					inputSequence->GetStates().Add(state);
+					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
+				}
+			}
+			else if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(NodeTemplate))
+			{
+				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+				{
+					inputSequence->GetStates().Add(state);
+					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
+				}
+			}
+			else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(NodeTemplate))
+			{
+				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+				{
+					inputSequence->GetStates().Add(state);
+					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
+				}
+			}
+		}
 
 		ParentGraph->NotifyGraphChanged();
 
@@ -1446,6 +1231,15 @@ void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) cons
 	entryGraphNode->NodePosX = -300;
 	entryGraphNodeCreator.Finalize();
 	SetNodeMetaData(entryGraphNode, FNodeMetadata::DefaultGraphNode);
+
+	if (UInputSequence* inputSequence = Graph.GetTypedOuter<UInputSequence>())
+	{
+		if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+		{
+			inputSequence->GetEntryStates().Add(state);
+			inputSequence->NodeToStateMapping.Add(entryGraphNode->NodeGuid, state);
+		}
+	}
 }
 
 TSharedPtr<FEdGraphSchemaAction> UInputSequenceGraphSchema::GetCreateCommentAction() const
@@ -1475,14 +1269,17 @@ FText UInputSequenceGraphNode_Entry::GetTooltipText() const
 }
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Input
+// UInputSequenceGraphNode_Base
 //------------------------------------------------------
 
-UInputSequenceGraphNode_Input::UInputSequenceGraphNode_Input(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+void UInputSequenceGraphNode_Base::PrepareForCopying()
 {
-	ResetTime = 0;
-	bOverrideResetTime = 0;
+	PrevOwningAsset = GetTypedOuter<UInputSequence>();
 }
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Input
+//------------------------------------------------------
 
 void UInputSequenceGraphNode_Input::AllocateDefaultPins()
 {
@@ -1608,7 +1405,7 @@ protected:
 
 	bool CanPasteNodes() const;
 
-	void DuplicateNodes() { CopySelectedNodes(); PasteNodes(); }
+	void DuplicateSelectedNodes() { CopySelectedNodes(); PasteNodes(); }
 
 	bool CanDuplicateNodes() const { return CanCopyNodes(); }
 
@@ -1730,10 +1527,7 @@ TSharedRef<SDockTab> FInputSequenceEditor::SpawnTab_GraphTab(const FSpawnTabArgs
 
 	if (InputSequence->EdGraph == NULL)
 	{
-		UInputSequenceGraph* InputSequenceGraph = NewObject<UInputSequenceGraph>(InputSequence, NAME_None, RF_Transactional);
-		InputSequenceGraph->SetInputSequence(InputSequence);
-
-		InputSequence->EdGraph = InputSequenceGraph;
+		InputSequence->EdGraph = NewObject<UInputSequenceGraph>(InputSequence, NAME_None, RF_Transactional);;
 		InputSequence->EdGraph->GetSchema()->CreateDefaultNodesForGraph(*InputSequence->EdGraph);
 	}
 
@@ -1776,7 +1570,7 @@ TSharedRef<SDockTab> FInputSequenceEditor::SpawnTab_GraphTab(const FSpawnTabArgs
 		);
 
 		GraphEditorCommands->MapAction(FGenericCommands::Get().Duplicate,
-			FExecuteAction::CreateRaw(this, &FInputSequenceEditor::DuplicateNodes),
+			FExecuteAction::CreateRaw(this, &FInputSequenceEditor::DuplicateSelectedNodes),
 			FCanExecuteAction::CreateRaw(this, &FInputSequenceEditor::CanDuplicateNodes)
 		);
 
@@ -1873,22 +1667,42 @@ void FInputSequenceEditor::DeleteSelectedNodes()
 	{
 		if (graphEditor.IsValid())
 		{
-			const FScopedTransaction Transaction(FGenericCommands::Get().Delete->GetDescription());
-			graphEditor->GetCurrentGraph()->Modify();
+			TArray<UEdGraphNode*> Nodes;
 
-			const FGraphPanelSelectionSet SelectedNodes = graphEditor->GetSelectedNodes();
-			graphEditor->ClearSelectionSet();
-
-			for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
+			for (FGraphPanelSelectionSet::TConstIterator NodeIt(graphEditor->GetSelectedNodes()); NodeIt; ++NodeIt)
 			{
 				if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
 				{
 					if (Node->CanUserDeleteNode())
 					{
-						Node->Modify();
-						Node->DestroyNode();
+						Nodes.Add(Node);
 					}
 				}
+			}
+
+			const FScopedTransaction Transaction(FGenericCommands::Get().Delete->GetDescription());
+			
+			InputSequence->Modify();
+
+			for (UEdGraphNode* Node : Nodes)
+			{
+				if (InputSequence->NodeToStateMapping.Contains(Node->NodeGuid))
+				{
+					InputSequence->NodeToStateMapping[Node->NodeGuid]->Modify();
+
+					InputSequence->NodeToStateMapping.Remove(Node->NodeGuid);
+					InputSequence->GetStates().Remove(InputSequence->NodeToStateMapping[Node->NodeGuid]);
+				}
+			}
+
+			graphEditor->GetCurrentGraph()->Modify();
+
+			graphEditor->ClearSelectionSet();
+
+			for (UEdGraphNode* Node : Nodes)
+			{
+				Node->Modify();
+				Node->DestroyNode();
 			}
 		}
 	}
@@ -1896,8 +1710,7 @@ void FInputSequenceEditor::DeleteSelectedNodes()
 
 bool FInputSequenceEditor::CanDeleteNodes() const
 {
-	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
-	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
+	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(GetSelectedNodes()); SelectedIter; ++SelectedIter)
 	{
 		UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter);
 		if (Node && Node->CanUserDeleteNode()) return true;
@@ -1993,40 +1806,59 @@ void FInputSequenceEditor::PasteNodes()
 			TSet<UEdGraphNode*> PastedNodes;
 			FEdGraphUtilities::ImportNodesFromText(EdGraph, TextToImport, /*out*/ PastedNodes);
 
-			//Average position of nodes so we can move them while still maintaining relative distances to each other
-			FVector2D AvgNodePosition(0.0f, 0.0f);
-
-			for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
-			{
-				UEdGraphNode* Node = *It;
-				AvgNodePosition.X += Node->NodePosX;
-				AvgNodePosition.Y += Node->NodePosY;
-			}
-
 			if (PastedNodes.Num() > 0)
 			{
+				//Average position of nodes so we can move them while still maintaining relative distances to each other
+				FVector2D AvgNodePosition(0.0f, 0.0f);
+
+				for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
+				{
+					UEdGraphNode* Node = *It;
+					AvgNodePosition.X += Node->NodePosX;
+					AvgNodePosition.Y += Node->NodePosY;
+				}
+
 				float InvNumNodes = 1.0f / float(PastedNodes.Num());
 				AvgNodePosition.X *= InvNumNodes;
 				AvgNodePosition.Y *= InvNumNodes;
+
+				UInputSequence* prevOwningAsset = Cast<UInputSequenceGraphNode_Base>(*PastedNodes.begin())->PrevOwningAsset;
+
+				TMap<UEdGraphNode*, UInputSequenceState_Input*> nodeToStateMapping;
+
+				for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
+				{
+					UEdGraphNode* Node = *It;
+
+					// Select the newly pasted stuff
+					graphEditor->SetNodeSelection(Node, true);
+
+					Node->NodePosX = (Node->NodePosX - AvgNodePosition.X) + Location.X;
+					Node->NodePosY = (Node->NodePosY - AvgNodePosition.Y) + Location.Y;
+
+					Node->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
+
+					nodeToStateMapping.Add(Node, prevOwningAsset->NodeToStateMapping[Node->NodeGuid]);
+
+					// Give new node a different Guid from the old one
+					Node->CreateNewGuid();
+				}
+
+				InputSequence->Modify();
+
+				for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
+				{
+					UEdGraphNode* Node = *It;
+
+					if (UInputSequenceState_Input* state = DuplicateObject(nodeToStateMapping[Node], InputSequence))
+					{
+						InputSequence->GetStates().Add(state);
+						InputSequence->NodeToStateMapping.Add(Node->NodeGuid, state);
+					}
+				}
+
+				EdGraph->NotifyGraphChanged();
 			}
-
-			for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
-			{
-				UEdGraphNode* Node = *It;
-
-				// Select the newly pasted stuff
-				graphEditor->SetNodeSelection(Node, true);
-
-				Node->NodePosX = (Node->NodePosX - AvgNodePosition.X) + Location.X;
-				Node->NodePosY = (Node->NodePosY - AvgNodePosition.Y) + Location.Y;
-
-				Node->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
-
-				// Give new node a different Guid from the old one
-				Node->CreateNewGuid();
-			}
-
-			EdGraph->NotifyGraphChanged();
 		}
 	}
 }
