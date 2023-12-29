@@ -16,6 +16,7 @@ void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& 
 	}
 
 	TArray<FEventRequest> eventRequests;
+	
 	TArray<FResetRequest> resetRequests;
 
 	for (UInputSequence* inputSequence : InputSequences)
@@ -25,6 +26,6 @@ void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& 
 
 	for (const FEventRequest& eventRequest : eventRequests)
 	{
-		eventRequest.InputSequenceEvent->Execute(eventRequest.State, eventRequest.RequestKey, resetRequests);
+		eventRequest.Event->Execute(eventRequest.State, eventRequest.RequestKey, resetRequests);
 	}
 }

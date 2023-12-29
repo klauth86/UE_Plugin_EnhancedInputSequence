@@ -62,7 +62,7 @@ struct INPUTSEQUENCECORE_API FEventRequest
 
 public:
 
-	FEventRequest() :State(nullptr), RequestKey(nullptr), InputSequenceEvent(nullptr) {}
+	FEventRequest() :State(nullptr), RequestKey(nullptr), Event(nullptr) {}
 
 	/* Requested by State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
@@ -74,7 +74,7 @@ public:
 
 	/* Requested Input Sequence Event */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
-	TObjectPtr<UInputSequenceEvent> InputSequenceEvent;
+	TObjectPtr<UInputSequenceEvent> Event;
 };
 
 //------------------------------------------------------
@@ -191,7 +191,7 @@ public:
 	virtual void OnReset(TArray<FEventRequest>& outEventCalls) override;
 
 	UPROPERTY()
-	TMap<UInputAction*, FInputActionInfo> InputActionInfos;
+	TMap<FSoftObjectPath, FInputActionInfo> InputActionInfos;
 
 	/* Enter Events for this state */
 	UPROPERTY(EditAnywhere, Category = "Events:")
@@ -216,7 +216,7 @@ public:
 	uint8 bOverrideResetTime : 1;
 
 	/* Time interval, after which this state will be reset if no any successful steps will be made within this interval */
-	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
+	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bOverrideResetTime))
 	float ResetTime;
 
 	float ResetTimeLeft;
@@ -279,7 +279,7 @@ public:
 
 protected:
 
-	void MakeTransition(const TObjectPtr<UInputSequenceState_Base> fromState, const TSet<TObjectPtr<UInputSequenceState_Base>>& toStates, TArray<FEventRequest>& outEventCalls);
+	void MakeTransition(UInputSequenceState_Base* fromState, const TSet<TObjectPtr<UInputSequenceState_Base>>& toStates, TArray<FEventRequest>& outEventCalls);
 
 	void RequestReset(const TObjectPtr<UInputSequenceState_Base> state, const TObjectPtr<URequestKey> requestKey, const bool resetAsset);
 

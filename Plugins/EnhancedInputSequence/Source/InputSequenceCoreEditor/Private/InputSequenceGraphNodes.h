@@ -48,7 +48,7 @@ public:
 
 	virtual void PrepareForCopying() override;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	TObjectPtr<UInputSequence> PrevOwningAsset;
 };
 
