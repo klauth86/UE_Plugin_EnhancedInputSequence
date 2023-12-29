@@ -1050,7 +1050,7 @@ FConnectionDrawingPolicy* FInputSequenceGraphPinConnectionFactory::CreateConnect
 {
 	if (Schema->IsA<UInputSequenceGraphSchema>())
 	{
-		return new FInputSequenceConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, ZoomFactor, InClippingRect, InDrawElements, InGraphObj);;
+		return new FInputSequenceConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, ZoomFactor, InClippingRect, InDrawElements, InGraphObj);
 	}
 
 	return nullptr;
@@ -1124,8 +1124,6 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 			{
 				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
 				{
-					state->bIsResetState = 1;
-
 					inputSequence->GetStates().Add(state);
 					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
 				}
@@ -1527,7 +1525,7 @@ TSharedRef<SDockTab> FInputSequenceEditor::SpawnTab_GraphTab(const FSpawnTabArgs
 
 	if (InputSequence->EdGraph == NULL)
 	{
-		InputSequence->EdGraph = NewObject<UInputSequenceGraph>(InputSequence, NAME_None, RF_Transactional);;
+		InputSequence->EdGraph = NewObject<UInputSequenceGraph>(InputSequence, NAME_None, RF_Transactional);
 		InputSequence->EdGraph->GetSchema()->CreateDefaultNodesForGraph(*InputSequence->EdGraph);
 	}
 
@@ -1598,9 +1596,9 @@ void FInputSequenceEditor::OnSelectionChanged(const TSet<UObject*>& selectedNode
 {
 	if (selectedNodes.Num() == 1)
 	{
-		if (UInputSequenceGraphNode_Input* inputNode = Cast<UInputSequenceGraphNode_Input>(*selectedNodes.begin()))
+		if (UInputSequenceGraphNode_Base* Node = Cast<UInputSequenceGraphNode_Base>(*selectedNodes.begin()))
 		{
-			return DetailsView->SetObject(inputNode);
+			return DetailsView->SetObject(InputSequence->NodeToStateMapping[Node->NodeGuid]);
 		}
 
 		if (UEdGraphNode_Comment* commentNode = Cast<UEdGraphNode_Comment>(*selectedNodes.begin()))
@@ -1609,7 +1607,7 @@ void FInputSequenceEditor::OnSelectionChanged(const TSet<UObject*>& selectedNode
 		}
 	}
 
-	return DetailsView->SetObject(InputSequence);;
+	return DetailsView->SetObject(InputSequence);
 }
 
 void FInputSequenceEditor::OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
@@ -1824,7 +1822,7 @@ void FInputSequenceEditor::PasteNodes()
 
 				UInputSequence* prevOwningAsset = Cast<UInputSequenceGraphNode_Base>(*PastedNodes.begin())->PrevOwningAsset;
 
-				TMap<UEdGraphNode*, UInputSequenceState_Input*> nodeToStateMapping;
+				TMap<UEdGraphNode*, UInputSequenceState_Base*> nodeToStateMapping;
 
 				for (TSet<UEdGraphNode*>::TIterator It(PastedNodes); It; ++It)
 				{
@@ -1850,7 +1848,7 @@ void FInputSequenceEditor::PasteNodes()
 				{
 					UEdGraphNode* Node = *It;
 
-					if (UInputSequenceState_Input* state = DuplicateObject(nodeToStateMapping[Node], InputSequence))
+					if (UInputSequenceState_Base* state = DuplicateObject(nodeToStateMapping[Node], InputSequence))
 					{
 						InputSequence->GetStates().Add(state);
 						InputSequence->NodeToStateMapping.Add(Node->NodeGuid, state);

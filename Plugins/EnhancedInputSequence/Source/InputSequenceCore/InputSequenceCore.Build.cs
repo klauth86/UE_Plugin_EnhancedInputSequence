@@ -34,7 +34,7 @@ public class InputSequenceCore : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-                "CoreUObject", "Engine", "EnhancedInput"
+				"CoreUObject", "Engine", "EnhancedInput"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

@@ -40,7 +40,7 @@ public:
 
 	/* Requested by State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
-	TObjectPtr<UInputSequenceState_Input> State;
+	TObjectPtr<UInputSequenceState_Base> State;
 
 	/* Requested with Request Key */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
@@ -66,7 +66,7 @@ public:
 
 	/* Requested by State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
-	TObjectPtr<UInputSequenceState_Input> State;
+	TObjectPtr<UInputSequenceState_Base> State;
 
 	/* Requested with Request Key */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
@@ -89,9 +89,9 @@ class INPUTSEQUENCECORE_API UInputSequenceEvent : public UObject
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, Category = "Input Sequence Event")
-	void Execute(UInputSequenceState_Input* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
+	void Execute(UInputSequenceState_Base* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
 
-	virtual void Execute_Implementation(UInputSequenceState_Input* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
+	virtual void Execute_Implementation(UInputSequenceState_Base* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
 
 	virtual UWorld* GetWorld() const override;
 };
@@ -128,22 +128,69 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceState_Input
+// UInputSequenceState_Base
 //------------------------------------------------------
 
-UCLASS()
-class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UObject
+UCLASS(ABSTRACT)
+class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
 public:
 
-	void Reset();
+	UPROPERTY()
+	TObjectPtr<UInputSequenceState_Base> RootState;
 
 	UPROPERTY()
-	TObjectPtr<UInputSequenceState_Input> RootState;
-	UPROPERTY()
-	TSet<TObjectPtr<UInputSequenceState_Input>> NextStates;
+	TSet<TObjectPtr<UInputSequenceState_Base>> NextStates;
+
+	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) {}
+	virtual void OnPass(TArray<FEventRequest>& outEventCalls) {}
+	virtual void OnReset(TArray<FEventRequest>& outEventCalls) {}
+};
+
+//------------------------------------------------------
+// UInputSequenceState_Hub
+//------------------------------------------------------
+
+UCLASS()
+class INPUTSEQUENCECORE_API UInputSequenceState_Hub : public UInputSequenceState_Base
+{
+	GENERATED_UCLASS_BODY()
+};
+
+//------------------------------------------------------
+// UInputSequenceState_Reset
+//------------------------------------------------------
+
+UCLASS()
+class INPUTSEQUENCECORE_API UInputSequenceState_Reset : public UInputSequenceState_Base
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	/* Request Key for this state */
+	UPROPERTY(EditAnywhere, Category = "Context:")
+	TObjectPtr<URequestKey> RequestKey;
+};
+
+//------------------------------------------------------
+// UInputSequenceState_Input
+//------------------------------------------------------
+
+UCLASS()
+class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UInputSequenceState_Hub
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) override;
+	virtual void OnPass(TArray<FEventRequest>& outEventCalls) override;
+	virtual void OnReset(TArray<FEventRequest>& outEventCalls) override;
+
+	void Reset();
 
 	UPROPERTY()
 	TMap<UInputAction*, FInputActionInfo> InputActionInfos;
@@ -168,10 +215,7 @@ public:
 
 	/* If true, this state will be reset if no any successful steps will be made within some time interval */
 	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (InlineEditConditionToggle))
-	uint8 bHasResetTime : 1;
-
-	UPROPERTY()
-	uint8 bIsResetState : 1;
+	uint8 bOverrideResetTime : 1;
 
 	/* Time interval, after which this state will be reset if no any successful steps will be made within this interval */
 	UPROPERTY(EditAnywhere, Category = "Overrides", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
@@ -197,11 +241,11 @@ public:
 	UEdGraph* EdGraph;
 
 	UPROPERTY()
-	TMap<FGuid, TObjectPtr<UInputSequenceState_Input>> NodeToStateMapping;
+	TMap<FGuid, TObjectPtr<UInputSequenceState_Base>> NodeToStateMapping;
 
-	TSet<TObjectPtr<UInputSequenceState_Input>>& GetEntryStates() { return EntryStates; }
+	TSet<TObjectPtr<UInputSequenceState_Base>>& GetEntryStates() { return EntryStates; }
 
-	TSet<TObjectPtr<UInputSequenceState_Input>>& GetStates() { return States; }
+	TSet<TObjectPtr<UInputSequenceState_Base>>& GetStates() { return States; }
 
 #endif
 
@@ -237,13 +281,13 @@ public:
 
 protected:
 
-	void MakeTransition(const TObjectPtr<UInputSequenceState_Input> fromState, const TSet<TObjectPtr<UInputSequenceState_Input>>& toStates, TArray<FEventRequest>& outEventCalls);
+	void MakeTransition(const TObjectPtr<UInputSequenceState_Base> fromState, const TSet<TObjectPtr<UInputSequenceState_Base>>& toStates, TArray<FEventRequest>& outEventCalls);
 
-	void RequestReset(const TObjectPtr<UInputSequenceState_Input> state, const TObjectPtr<URequestKey> requestKey, const bool resetAsset);
+	void RequestReset(const TObjectPtr<UInputSequenceState_Base> state, const TObjectPtr<URequestKey> requestKey, const bool resetAsset);
 
-	void EnterState(UInputSequenceState_Input* state, TArray<FEventRequest>& outEventCalls);
+	void EnterState(UInputSequenceState_Base* state, TArray<FEventRequest>& outEventCalls);
 
-	void PassState(UInputSequenceState_Input* state, TArray<FEventRequest>& outEventCalls);
+	void PassState(UInputSequenceState_Base* state, TArray<FEventRequest>& outEventCalls);
 
 	EConsumeInputResponse OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateData, UInputSequenceState_Input* state);
 
@@ -251,21 +295,15 @@ protected:
 
 	void ProcessResetSources(TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources);
 
-	void ProcessResetSources_Internal(const TSet<TObjectPtr<UInputSequenceState_Input>>& statesToReset, TArray<FEventRequest>& outEventCalls);
-
 protected:
 
 	UPROPERTY()
-	TSet<TObjectPtr<UInputSequenceState_Input>> EntryStates;
+	TSet<TObjectPtr<UInputSequenceState_Base>> EntryStates;
 
 	UPROPERTY()
-	TSet<TObjectPtr<UInputSequenceState_Input>> States;
+	TSet<TObjectPtr<UInputSequenceState_Base>> States;
 
-	/* If true, any active state will be reset if no any successful steps will be made within some time interval (can be override in state) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (InlineEditConditionToggle))
-	uint8 bHasResetTime : 1;
-
-	/* Time interval, after which any active state will be reset if no any successful steps will be made within this interval (can be override in state) */
+	/* Time interval, after which any active state will be reset if no any successful steps will be made within this interval (can be override in state). Zero value means reset will not trigger. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
 	float ResetTime;
 
@@ -279,7 +317,7 @@ protected:
 
 	mutable FCriticalSection resetSourcesCS;
 
-	TSet<TObjectPtr<UInputSequenceState_Input>> ActiveStates;
+	TSet<TObjectPtr<UInputSequenceState_Base>> ActiveStates;
 
 	TArray<FResetRequest> ResetSources;
 
