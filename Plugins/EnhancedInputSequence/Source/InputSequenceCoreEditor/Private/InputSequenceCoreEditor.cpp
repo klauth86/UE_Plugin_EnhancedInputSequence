@@ -572,11 +572,11 @@ FSlateColor SGraphPin_Input::GetTriggerEventForegroundColor(const TSharedPtr<SBu
 
 	if (PinObject && PinObject->DefaultObject)
 	{
-		if (UEdGraphNode* node = PinObject->GetOwningNode())
+		if (UEdGraphNode* graphNode = PinObject->GetOwningNode())
 		{
-			if (UInputSequence* inputSequence = node->GetTypedOuter<UInputSequence>())
+			if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
 			{
-				if (Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[node->NodeGuid])->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
+				if (Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid])->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
 				{
 					color = FLinearColor::Green;
 				}
@@ -591,11 +591,11 @@ FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const TSharedPtr<SButton>& b
 {
 	if (PinObject && PinObject->DefaultObject)
 	{
-		if (UEdGraphNode* node = PinObject->GetOwningNode())
+		if (UEdGraphNode* graphNode = PinObject->GetOwningNode())
 		{
-			if (UInputSequence* inputSequence = node->GetTypedOuter<UInputSequence>())
+			if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
 			{
-				if (Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[node->NodeGuid])->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
+				if (Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid])->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
 				{
 					return inputEventFontInfo_Selected;
 				}
@@ -1104,7 +1104,6 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 		NodeTemplate->CreateNewGuid();
 		NodeTemplate->PostPlacedNewNode();
 		NodeTemplate->AllocateDefaultPins();
-		NodeTemplate->AutowireNewNode(graphPin);
 
 		NodeTemplate->NodePosX = Location.X;
 		NodeTemplate->NodePosY = Location.Y;
@@ -1116,7 +1115,7 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 
 			if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(NodeTemplate))
 			{
-				if (UInputSequenceState_Reset* state = NewObject<UInputSequenceState_Reset>(inputSequence))
+				if (UInputSequenceState_Reset* state = NewObject<UInputSequenceState_Reset>(inputSequence, NAME_None, RF_Transactional))
 				{
 					inputSequence->GetStates().Add(state);
 					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
@@ -1124,7 +1123,7 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 			}
 			else if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(NodeTemplate))
 			{
-				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence))
+				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence, NAME_None, RF_Transactional))
 				{
 					inputSequence->GetStates().Add(state);
 					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
@@ -1132,13 +1131,15 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 			}
 			else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(NodeTemplate))
 			{
-				if (UInputSequenceState_Hub* state = NewObject<UInputSequenceState_Hub>(inputSequence))
+				if (UInputSequenceState_Hub* state = NewObject<UInputSequenceState_Hub>(inputSequence, NAME_None, RF_Transactional))
 				{
 					inputSequence->GetStates().Add(state);
 					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
 				}
 			}
 		}
+
+		NodeTemplate->AutowireNewNode(graphPin);
 
 		graph->NotifyGraphChanged();
 
@@ -1216,6 +1217,82 @@ const FPinConnectionResponse UInputSequenceGraphSchema::CanCreateConnection(cons
 	return FPinConnectionResponse(CONNECT_RESPONSE_BREAK_OTHERS_AB, TEXT(""));
 }
 
+bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
+{
+	const FPinConnectionResponse Response = CanCreateConnection(PinA, PinB);
+
+	bool bModified = false;
+
+	UEdGraphNode* nodeA = PinA->GetOwningNode();
+	UEdGraphNode* nodeB = PinB->GetOwningNode();
+
+	UInputSequence* inputSequence = nodeA->GetTypedOuter<UInputSequence>();
+
+	switch (Response.Response)
+	{
+	case CONNECT_RESPONSE_MAKE:
+		PinA->Modify();
+		PinB->Modify();
+		PinA->MakeLinkTo(PinB);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
+		bModified = true;
+		break;
+
+	case CONNECT_RESPONSE_BREAK_OTHERS_A:
+		PinA->Modify();
+		PinB->Modify();
+		PinA->BreakAllPinLinks(true);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Empty();
+		PinA->MakeLinkTo(PinB);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
+		bModified = true;
+		break;
+
+	case CONNECT_RESPONSE_BREAK_OTHERS_B:
+		PinA->Modify();
+		PinB->Modify();
+		PinB->BreakAllPinLinks(true);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Empty();
+		PinA->MakeLinkTo(PinB);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
+		bModified = true;
+		break;
+
+	case CONNECT_RESPONSE_BREAK_OTHERS_AB:
+		PinA->Modify();
+		PinB->Modify();
+		PinA->BreakAllPinLinks(true);
+		PinB->BreakAllPinLinks(true);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Empty();
+		PinA->MakeLinkTo(PinB);
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
+		bModified = true;
+		break;
+
+	case CONNECT_RESPONSE_MAKE_WITH_CONVERSION_NODE:
+		bModified = CreateAutomaticConversionNodeAndConnections(PinA, PinB);
+		break;
+
+	case CONNECT_RESPONSE_MAKE_WITH_PROMOTION:
+		bModified = CreatePromotedConnection(PinA, PinB);
+		break;
+
+	case CONNECT_RESPONSE_DISALLOW:
+	default:
+		break;
+	}
+
+#if WITH_EDITOR
+	if (bModified)
+	{
+		PinA->GetOwningNode()->PinConnectionListChanged(PinA);
+		PinB->GetOwningNode()->PinConnectionListChanged(PinB);
+	}
+#endif	//#if WITH_EDITOR
+
+	return bModified;
+}
+
 void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 {
 	FGraphNodeCreator<UInputSequenceGraphNode_Entry> entryGraphNodeCreator(Graph);
@@ -1226,7 +1303,7 @@ void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) cons
 
 	if (UInputSequence* inputSequence = Graph.GetTypedOuter<UInputSequence>())
 	{
-		if (UInputSequenceState_Base* state = NewObject<UInputSequenceState_Base>(inputSequence))
+		if (UInputSequenceState_Base* state = NewObject<UInputSequenceState_Base>(inputSequence, NAME_None, RF_Transactional))
 		{
 			inputSequence->GetEntryStates().Add(state);
 			inputSequence->NodeToStateMapping.Add(entryGraphNode->NodeGuid, state);
@@ -1266,7 +1343,38 @@ FText UInputSequenceGraphNode_Entry::GetTooltipText() const
 
 void UInputSequenceGraphNode_Base::PrepareForCopying()
 {
+	Super::PrepareForCopying();
+
 	PrevOwningAsset = GetTypedOuter<UInputSequence>();
+}
+
+void UInputSequenceGraphNode_Base::AutowireNewNode(UEdGraphPin* FromPin)
+{
+	Super::AutowireNewNode(FromPin);
+
+	if (FromPin != NULL)
+	{
+		if (UEdGraphPin* toPin = GetExecPin(FromPin->Direction == EGPD_Input ? EEdGraphPinDirection::EGPD_Output : EEdGraphPinDirection::EGPD_Input))
+		{
+			if (GetSchema()->TryCreateConnection(FromPin, toPin))
+			{
+				FromPin->GetOwningNode()->NodeConnectionListChanged();
+			}
+		}
+	}
+}
+
+UEdGraphPin* UInputSequenceGraphNode_Base::GetExecPin(EEdGraphPinDirection direction) const
+{
+	for (UEdGraphPin* pin : Pins)
+	{
+		if (pin->Direction == direction && pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+		{
+			return pin;
+		}
+	}
+
+	return nullptr;
 }
 
 //------------------------------------------------------
@@ -1590,9 +1698,9 @@ void FInputSequenceEditor::OnSelectionChanged(const TSet<UObject*>& selectedNode
 {
 	if (selectedNodes.Num() == 1)
 	{
-		if (UInputSequenceGraphNode_Base* Node = Cast<UInputSequenceGraphNode_Base>(*selectedNodes.begin()))
+		if (UInputSequenceGraphNode_Base* graphNode = Cast<UInputSequenceGraphNode_Base>(*selectedNodes.begin()))
 		{
-			return DetailsView->SetObject(InputSequence->NodeToStateMapping[Node->NodeGuid]);
+			return DetailsView->SetObject(InputSequence->NodeToStateMapping[graphNode->NodeGuid]);
 		}
 
 		if (UEdGraphNode_Comment* commentNode = Cast<UEdGraphNode_Comment>(*selectedNodes.begin()))
@@ -1665,11 +1773,11 @@ void FInputSequenceEditor::DeleteSelectedNodes()
 
 			for (FGraphPanelSelectionSet::TConstIterator NodeIt(graphEditor->GetSelectedNodes()); NodeIt; ++NodeIt)
 			{
-				if (UEdGraphNode* Node = Cast<UEdGraphNode>(*NodeIt))
+				if (UEdGraphNode* graphNode = Cast<UEdGraphNode>(*NodeIt))
 				{
-					if (Node->CanUserDeleteNode())
+					if (graphNode->CanUserDeleteNode())
 					{
-						graphNodes.Add(Node);
+						graphNodes.Add(graphNode);
 					}
 				}
 			}
@@ -1706,8 +1814,8 @@ bool FInputSequenceEditor::CanDeleteNodes() const
 {
 	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(GetSelectedNodes()); SelectedIter; ++SelectedIter)
 	{
-		UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter);
-		if (Node && Node->CanUserDeleteNode()) return true;
+		UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
+		if (graphNode && graphNode->CanUserDeleteNode()) return true;
 	}
 
 	return false;
@@ -1719,9 +1827,9 @@ void FInputSequenceEditor::CopySelectedNodes()
 
 	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 	{
-		if (UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter))
+		if (UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter))
 		{
-			Node->PrepareForCopying();
+			graphNode->PrepareForCopying();
 		}
 	}
 
@@ -1735,8 +1843,8 @@ bool FInputSequenceEditor::CanCopyNodes() const
 	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
 	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 	{
-		UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter);
-		if (Node && Node->CanDuplicateNode()) return true;
+		UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
+		if (graphNode && graphNode->CanDuplicateNode()) return true;
 	}
 
 	return false;
@@ -1753,10 +1861,10 @@ void FInputSequenceEditor::DeleteSelectedDuplicatableNodes()
 
 			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(OldSelectedNodes); SelectedIter; ++SelectedIter)
 			{
-				UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter);
-				if (Node && Node->CanDuplicateNode())
+				UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
+				if (graphNode && graphNode->CanDuplicateNode())
 				{
-					graphEditor->SetNodeSelection(Node, true);
+					graphEditor->SetNodeSelection(graphNode, true);
 				}
 			}
 
@@ -1766,9 +1874,9 @@ void FInputSequenceEditor::DeleteSelectedDuplicatableNodes()
 
 			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(OldSelectedNodes); SelectedIter; ++SelectedIter)
 			{
-				if (UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter))
+				if (UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter))
 				{
-					graphEditor->SetNodeSelection(Node, true);
+					graphEditor->SetNodeSelection(graphNode, true);
 				}
 			}
 		}

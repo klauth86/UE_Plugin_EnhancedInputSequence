@@ -48,6 +48,10 @@ public:
 
 	virtual void PrepareForCopying() override;
 
+	virtual void AutowireNewNode(UEdGraphPin* FromPin) override;
+
+	UEdGraphPin* GetExecPin(EEdGraphPinDirection direction) const;
+
 	UPROPERTY()
 	TObjectPtr<UInputSequence> PrevOwningAsset;
 };
