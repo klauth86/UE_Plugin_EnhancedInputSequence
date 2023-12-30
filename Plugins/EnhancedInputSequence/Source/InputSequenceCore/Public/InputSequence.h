@@ -88,7 +88,7 @@ class INPUTSEQUENCECORE_API UInputSequenceEvent : public UObject
 
 public:
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, Category = "Input Sequence Event")
+	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, BlueprintCallable, Category = "Input Sequence Event")
 	void Execute(UInputSequenceState_Base* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
 
 	virtual void Execute_Implementation(UInputSequenceState_Base* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
@@ -122,6 +122,9 @@ public:
 	uint8 bIsPassed : 1;
 
 	UPROPERTY()
+	uint8 bRequirePreciseMatch : 1;
+
+	UPROPERTY()
 	float WaitTime;
 
 	float WaitTimeLeft;
@@ -138,10 +141,10 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 
 public:
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	TObjectPtr<UInputSequenceState_Base> RootState;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	TSet<TObjectPtr<UInputSequenceState_Base>> NextStates;
 
 	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) {}
@@ -194,13 +197,13 @@ public:
 	TMap<FSoftObjectPath, FInputActionInfo> InputActionInfos;
 
 	/* Enter Events for this state */
-	UPROPERTY(EditAnywhere, Category = "Events:")
+	UPROPERTY(EditAnywhere, Category = "Events:", meta=(EditInline))
 	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
 	/* Pass Events for this state */
-	UPROPERTY(EditAnywhere, Category = "Events:")
+	UPROPERTY(EditAnywhere, Category = "Events:", meta = (EditInline))
 	TArray<TObjectPtr<UInputSequenceEvent>> PassEvents;
 	/* Reset Events for this state */
-	UPROPERTY(EditAnywhere, Category = "Events:")
+	UPROPERTY(EditAnywhere, Category = "Events:", meta = (EditInline))
 	TArray<TObjectPtr<UInputSequenceEvent>> ResetEvents;
 
 	/* Request Key for this state */
@@ -226,7 +229,7 @@ public:
 // UInputSequence
 //------------------------------------------------------
 
-UCLASS()
+UCLASS(BlueprintType)
 class INPUTSEQUENCECORE_API UInputSequence : public UObject
 {
 	GENERATED_BODY()
@@ -240,7 +243,7 @@ public:
 
 	TSet<TObjectPtr<UInputSequenceState_Base>>& GetEntryStates() { return EntryStates; }
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	TMap<FGuid, TObjectPtr<UInputSequenceState_Base>> NodeToStateMapping;
 
 #endif
@@ -293,7 +296,7 @@ protected:
 
 protected:
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY()
 	TSet<TObjectPtr<UInputSequenceState_Base>> EntryStates;
 
 	/* Time interval, after which any active state will be reset if no any successful steps will be made within this interval (can be override in state). Zero value means reset will not trigger. */

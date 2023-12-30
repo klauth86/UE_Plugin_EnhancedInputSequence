@@ -24,6 +24,7 @@ FInputActionInfo::FInputActionInfo()
 {
 	TriggerEvent = ETriggerEvent::None;
 	bIsPassed = 0;
+	bRequirePreciseMatch = 0;
 	WaitTime = 0;
 	WaitTimeLeft = 0;
 }
@@ -312,17 +313,18 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 
 		outResetSources.SetNum(ResetSources.Num());
 		memcpy(outResetSources.GetData(), ResetSources.GetData(), ResetSources.Num() * ResetSources.GetTypeSize());
+		ResetSources.Empty();
+	}
 
-		for (const FResetRequest& resetSource : ResetSources)
+	for (const FResetRequest& resetSource : outResetSources)
+	{
+		resetAll |= resetSource.bResetAll;
+
+		if (resetAll) break;
+
+		if (!resetSource.bResetAll)
 		{
-			resetAll |= resetSource.bResetAll;
-			
-			if (resetAll) break;
-
-			if (!resetSource.bResetAll)
-			{
-				statesToReset.FindOrAdd(resetSource.State);
-			}
+			statesToReset.FindOrAdd(resetSource.State);
 		}
 	}
 
@@ -343,7 +345,7 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 		for (const TObjectPtr<UInputSequenceState_Base>& stateToReset : statesToReset)
 		{
 			check(ActiveStates.Contains(stateToReset));
-			
+
 			ActiveStates.Remove(stateToReset);
 			stateToReset->OnReset(outEventCalls);
 
