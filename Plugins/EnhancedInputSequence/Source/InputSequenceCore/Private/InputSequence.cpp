@@ -165,16 +165,6 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 	ProcessResetSources(outEventCalls, outResetSources);
 }
 
-void UInputSequence::RequestReset(URequestKey* requestKey)
-{
-	FScopeLock Lock(&resetSourcesCS);
-
-	int32 emplacedIndex = ResetSources.Emplace();
-	ResetSources[emplacedIndex].State = nullptr;
-	ResetSources[emplacedIndex].RequestKey = requestKey;
-	ResetSources[emplacedIndex].bResetAll = true;
-}
-
 void UInputSequence::RequestReset(const TObjectPtr<UInputSequenceState_Base> state, const TObjectPtr<URequestKey> requestKey, const bool resetAll)
 {
 	FScopeLock Lock(&resetSourcesCS);
@@ -183,8 +173,6 @@ void UInputSequence::RequestReset(const TObjectPtr<UInputSequenceState_Base> sta
 	ResetSources[emplacedIndex].State = state;
 	ResetSources[emplacedIndex].RequestKey = requestKey;
 	ResetSources[emplacedIndex].bResetAll = resetAll;
-
-	ActiveStates.Remove(state);
 }
 
 void UInputSequence::MakeTransition(UInputSequenceState_Base* fromState, const TSet<TObjectPtr<UInputSequenceState_Base>>& toStates, TArray<FEventRequest>& outEventCalls)
@@ -354,13 +342,12 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 	{
 		for (const TObjectPtr<UInputSequenceState_Base>& stateToReset : statesToReset)
 		{
-			if (ActiveStates.Contains(stateToReset))
-			{
-				ActiveStates.Remove(stateToReset);
-				stateToReset->OnReset(outEventCalls);
+			check(ActiveStates.Contains(stateToReset));
+			
+			ActiveStates.Remove(stateToReset);
+			stateToReset->OnReset(outEventCalls);
 
-				MakeTransition(nullptr, { stateToReset->RootState }, outEventCalls);
-			}
+			MakeTransition(nullptr, { stateToReset->RootState }, outEventCalls);
 		}
 	}
 }

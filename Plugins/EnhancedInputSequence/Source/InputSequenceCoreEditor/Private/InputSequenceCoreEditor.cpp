@@ -95,26 +95,18 @@ void AddPinToDynamicNode(UEdGraphNode* graphNode, FName category, FName pinName,
 	const FScopedTransaction Transaction(LOCTEXT("Transaction_AddPinToDynamicNode", "Add Pin"));
 	
 	graphNode->Modify();
-
 	UEdGraphPin* graphPin = graphNode->CreatePin(EGPD_Output, category, pinName, UEdGraphNode::FCreatePinParams());
 	
 	if (graphPin->DefaultObject = inputAction)
 	{
-		if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
-		{
-			if (UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]))
-			{
-				inputState->Modify();
+		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
 
-				inputState->InputActionInfos.Add(FSoftObjectPath(inputAction), FInputActionInfo());
-			}
-		}
+		inputState->Modify();
+		inputState->InputActionInfos.Add(FSoftObjectPath(inputAction), FInputActionInfo());
 	}
 
-	if (UInputSequenceGraphNode_Dynamic* dynamicGraphNode = Cast<UInputSequenceGraphNode_Dynamic>(graphNode))
-	{
-		dynamicGraphNode->OnUpdateGraphNode.ExecuteIfBound();
-	}
+	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 }
 
 //------------------------------------------------------
@@ -167,20 +159,14 @@ void SInputSequenceGraphNode_Dynamic::Construct(const FArguments& InArgs, UEdGra
 
 	GraphNode = InNode;
 
-	if (UInputSequenceGraphNode_Dynamic* dynamicGraphNode = Cast<UInputSequenceGraphNode_Dynamic>(InNode))
-	{
-		dynamicGraphNode->OnUpdateGraphNode.BindLambda([&]() { UpdateGraphNode(); });
-	}
+	Cast<UInputSequenceGraphNode_Dynamic>(GraphNode)->OnUpdateGraphNode.BindLambda([&]() { UpdateGraphNode(); });
 
 	UpdateGraphNode();
 }
 
 SInputSequenceGraphNode_Dynamic::~SInputSequenceGraphNode_Dynamic()
 {
-	if (UInputSequenceGraphNode_Dynamic* dynamicGraphNode = Cast<UInputSequenceGraphNode_Dynamic>(GraphNode))
-	{
-		dynamicGraphNode->OnUpdateGraphNode.Unbind();
-	}
+	Cast<UInputSequenceGraphNode_Dynamic>(GraphNode)->OnUpdateGraphNode.Unbind();
 }
 
 void SInputSequenceGraphNode_Dynamic::CreatePinWidgets()
@@ -501,42 +487,30 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 FReply SGraphPin_Input::OnClicked_RemovePin() const
 {
-	if (UEdGraphPin* graphPin = PinObject)
-	{
-		if (UEdGraphNode* graphNode = graphPin->GetOwningNode())
-		{
-			const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::OnClicked_RemovePin", "Remove Pin"));
+	UEdGraphPin* graphPin = PinObject;
+	UEdGraphNode* graphNode = graphPin->GetOwningNode();
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
 
-			if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
-			{
-				if (UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]))
-				{
-					for (TMap<FSoftObjectPath, FInputActionInfo>::TIterator It(inputState->InputActionInfos); It; ++It)
-					{
-						if ((*It).Key.TryLoad() == nullptr)
-						{
-							It.RemoveCurrent();
-						}
-					}
+	const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::OnClicked_RemovePin", "Remove Pin"));
 
-					inputState->Modify();
+	////// TODO Maybe store zombie?
+	//////for (TMap<FSoftObjectPath, FInputActionInfo>::TIterator It(inputState->InputActionInfos); It; ++It)
+	//////{
+	//////	if ((*It).Key.TryLoad() == nullptr)
+	//////	{
+	//////		It.RemoveCurrent();
+	//////	}
+	//////}
 
-					inputState->InputActionInfos.Remove(Cast<UInputAction>(graphPin->DefaultObject));
-				}
-			}
+	inputState->Modify();
+	inputState->InputActionInfos.Remove(Cast<UInputAction>(graphPin->DefaultObject));
 
-			graphNode->Modify();
+	graphNode->Modify();
+	graphPin->Modify();
+	graphNode->RemovePin(graphPin);
 
-			graphPin->Modify();
-
-			graphNode->RemovePin(graphPin);
-
-			if (UInputSequenceGraphNode_Dynamic* dynamicGraphNode = Cast<UInputSequenceGraphNode_Dynamic>(graphNode))
-			{
-				dynamicGraphNode->OnUpdateGraphNode.ExecuteIfBound();
-			}
-		}
-	}
+	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 
 	return FReply::Handled();
 }
@@ -545,20 +519,14 @@ FReply SGraphPin_Input::SetTriggerEvent(const ETriggerEvent triggerEvent) const
 {
 	if (PinObject && PinObject->DefaultObject)
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input_SetTriggerEvent", "Trigger Event"));
-		
-		if (UEdGraphNode* graphNode = PinObject->GetOwningNode())
-		{
-			if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
-			{
-				if (UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]))
-				{
-					inputState->Modify();
+		UEdGraphNode* graphNode = PinObject->GetOwningNode();
+		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
 
-					inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent = triggerEvent;
-				}
-			}
-		}
+		const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input_SetTriggerEvent", "Trigger Event"));
+
+		inputState->Modify();
+		inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent = triggerEvent;
 	}
 
 	return FReply::Handled();
@@ -572,15 +540,13 @@ FSlateColor SGraphPin_Input::GetTriggerEventForegroundColor(const TSharedPtr<SBu
 
 	if (PinObject && PinObject->DefaultObject)
 	{
-		if (UEdGraphNode* graphNode = PinObject->GetOwningNode())
+		UEdGraphNode* graphNode = PinObject->GetOwningNode();
+		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
 		{
-			if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
-			{
-				if (Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid])->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
-				{
-					color = FLinearColor::Green;
-				}
-			}
+			color = FLinearColor::Green;
 		}
 	}
 
@@ -591,15 +557,13 @@ FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const TSharedPtr<SButton>& b
 {
 	if (PinObject && PinObject->DefaultObject)
 	{
-		if (UEdGraphNode* graphNode = PinObject->GetOwningNode())
+		UEdGraphNode* graphNode = PinObject->GetOwningNode();
+		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
 		{
-			if (UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>())
-			{
-				if (Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid])->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
-				{
-					return inputEventFontInfo_Selected;
-				}
-			}
+			return inputEventFontInfo_Selected;
 		}
 	}
 
@@ -894,39 +858,39 @@ void SGraphPin_HubExec::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 FReply SGraphPin_HubExec::OnClicked_RemovePin() const
 {
-	if (UEdGraphPin* graphPin = GetPinObj())
+	UEdGraphPin* graphPin = GetPinObj();
+	UEdGraphNode* graphNode = graphPin->GetOwningNode();
+
+	const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_HubExec::OnClicked_RemovePin", "Remove Pin"));
+
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	
+	if (graphPin->HasAnyConnections())
 	{
-		if (UEdGraphNode* graphNode = graphPin->GetOwningNode())
+		inputSequence->Modify();
+		inputSequence->NodeToStateMapping[graphNode->NodeGuid]->NextStates.Remove(inputSequence->NodeToStateMapping[graphPin->LinkedTo[0]->GetOwningNode()->NodeGuid]);
+	}
+
+	graphNode->Modify();
+	graphPin->Modify();
+
+	int nextGraphPinIndex = graphNode->Pins.IndexOfByKey(graphPin) + 1;
+
+	if (graphNode->Pins.IsValidIndex(nextGraphPinIndex))
+	{
+		for (size_t i = nextGraphPinIndex; i < graphNode->Pins.Num(); i++)
 		{
-			const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_HubExec::OnClicked_RemovePin", "Remove Pin"));
-			
-			graphNode->Modify();
-			
-			graphPin->Modify();
-
-			int nextGraphPinIndex = graphNode->Pins.IndexOfByKey(graphPin) + 1;
-
-			if (graphNode->Pins.IsValidIndex(nextGraphPinIndex))
+			if (graphNode->Pins[i]->Direction == EGPD_Output && graphNode->Pins[i]->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
 			{
-				for (size_t i = nextGraphPinIndex; i < graphNode->Pins.Num(); i++)
-				{
-					if (graphNode->Pins[i]->Direction == EGPD_Output && graphNode->Pins[i]->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
-					{
-						graphNode->Pins[i]->Modify();
-
-						graphNode->Pins[i]->PinName = FName(FString::FromInt(i - 1));
-					}
-				}
-			}
-
-			graphNode->RemovePin(graphPin);
-
-			if (UInputSequenceGraphNode_Dynamic* dynamicGraphNode = Cast<UInputSequenceGraphNode_Dynamic>(graphNode))
-			{
-				dynamicGraphNode->OnUpdateGraphNode.ExecuteIfBound();
+				graphNode->Pins[i]->Modify();
+				graphNode->Pins[i]->PinName = FName(FString::FromInt(i - 1));
 			}
 		}
 	}
+
+	graphNode->RemovePin(graphPin);
+
+	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 
 	return FReply::Handled();
 }
@@ -1087,9 +1051,9 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 	if (NodeTemplate != NULL)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("Transaction_FInputSequenceGraphSchemaAction_NewNode::PerformAction", "Add Node"));
-		
+
 		graph->Modify();
-		
+
 		if (graphPin)
 		{
 			graphPin->Modify();
@@ -1109,33 +1073,29 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 		NodeTemplate->NodePosY = Location.Y;
 		NodeTemplate->SnapToGrid(GetDefault<UEditorStyleSettings>()->GridSnapSize);
 
-		if (UInputSequence* inputSequence = graph->GetTypedOuter<UInputSequence>())
-		{
-			inputSequence->Modify();
+		UInputSequence* inputSequence = graph->GetTypedOuter<UInputSequence>();
 
-			if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(NodeTemplate))
+		inputSequence->Modify();
+
+		if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(NodeTemplate))
+		{
+			if (UInputSequenceState_Reset* state = NewObject<UInputSequenceState_Reset>(inputSequence, NAME_None, RF_Transactional))
 			{
-				if (UInputSequenceState_Reset* state = NewObject<UInputSequenceState_Reset>(inputSequence, NAME_None, RF_Transactional))
-				{
-					inputSequence->GetStates().Add(state);
-					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
-				}
+				inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
 			}
-			else if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(NodeTemplate))
+		}
+		else if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(NodeTemplate))
+		{
+			if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence, NAME_None, RF_Transactional))
 			{
-				if (UInputSequenceState_Input* state = NewObject<UInputSequenceState_Input>(inputSequence, NAME_None, RF_Transactional))
-				{
-					inputSequence->GetStates().Add(state);
-					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
-				}
+				inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
 			}
-			else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(NodeTemplate))
+		}
+		else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(NodeTemplate))
+		{
+			if (UInputSequenceState_Hub* state = NewObject<UInputSequenceState_Hub>(inputSequence, NAME_None, RF_Transactional))
 			{
-				if (UInputSequenceState_Hub* state = NewObject<UInputSequenceState_Hub>(inputSequence, NAME_None, RF_Transactional))
-				{
-					inputSequence->GetStates().Add(state);
-					inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
-				}
+				inputSequence->NodeToStateMapping.Add(NodeTemplate->NodeGuid, state);
 			}
 		}
 
@@ -1293,6 +1253,45 @@ bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphP
 	return bModified;
 }
 
+void UInputSequenceGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotifcation) const
+{
+	UEdGraphNode* graphNode = TargetPin.GetOwningNode();
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Base* state = inputSequence->NodeToStateMapping[graphNode->NodeGuid];
+
+	if (!state->NextStates.IsEmpty())
+	{
+		check(TargetPin.HasAnyConnections())
+
+		const FScopedTransaction Transaction(LOCTEXT("Transaction_UInputSequenceGraphSchema::BreakPinLinks", "Break Pin Links"));
+
+		state->Modify();
+		state->NextStates.Empty();
+
+		Super::BreakPinLinks(TargetPin, bSendsNodeNotifcation);
+	}
+	else
+	{
+		check(!TargetPin.HasAnyConnections());
+	}
+}
+
+void UInputSequenceGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraphPin* TargetPin) const
+{
+	UEdGraphNode* sourceGraphNode = SourcePin->GetOwningNode();
+	UEdGraphNode* targetGraphNode = TargetPin->GetOwningNode();
+	UInputSequence* inputSequence = sourceGraphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Base* sourceState = inputSequence->NodeToStateMapping[sourceGraphNode->NodeGuid];
+	UInputSequenceState_Base* targetState = inputSequence->NodeToStateMapping[targetGraphNode->NodeGuid];
+
+	const FScopedTransaction Transaction(LOCTEXT("Transaction_UInputSequenceGraphSchema::BreakSinglePinLink", "Break Pin Link"));
+
+	sourceState->Modify();
+	sourceState->NextStates.Remove(targetState);
+
+	Super::BreakSinglePinLink(SourcePin, TargetPin);
+}
+
 void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 {
 	FGraphNodeCreator<UInputSequenceGraphNode_Entry> entryGraphNodeCreator(Graph);
@@ -1301,13 +1300,12 @@ void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) cons
 	entryGraphNodeCreator.Finalize();
 	SetNodeMetaData(entryGraphNode, FNodeMetadata::DefaultGraphNode);
 
-	if (UInputSequence* inputSequence = Graph.GetTypedOuter<UInputSequence>())
+	UInputSequence* inputSequence = Graph.GetTypedOuter<UInputSequence>();
+
+	if (UInputSequenceState_Base* state = NewObject<UInputSequenceState_Base>(inputSequence, NAME_None, RF_Transactional))
 	{
-		if (UInputSequenceState_Base* state = NewObject<UInputSequenceState_Base>(inputSequence, NAME_None, RF_Transactional))
-		{
-			inputSequence->GetEntryStates().Add(state);
-			inputSequence->NodeToStateMapping.Add(entryGraphNode->NodeGuid, state);
-		}
+		inputSequence->GetEntryStates().Add(state);
+		inputSequence->NodeToStateMapping.Add(entryGraphNode->NodeGuid, state);
 	}
 }
 
@@ -1730,7 +1728,6 @@ void FInputSequenceEditor::PostUndo(bool bSuccess)
 	{
 		if (graphEditor.IsValid())
 		{
-			graphEditor->ClearSelectionSet();
 			graphEditor->NotifyGraphChanged();
 		}
 	}
@@ -1769,16 +1766,17 @@ void FInputSequenceEditor::DeleteSelectedNodes()
 	{
 		if (graphEditor.IsValid())
 		{
-			TArray<UEdGraphNode*> graphNodes;
+			TSet<UEdGraphNode*> graphNodes;
 
-			for (FGraphPanelSelectionSet::TConstIterator NodeIt(graphEditor->GetSelectedNodes()); NodeIt; ++NodeIt)
+			const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+
+			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 			{
-				if (UEdGraphNode* graphNode = Cast<UEdGraphNode>(*NodeIt))
+				UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
+
+				if (graphNode->CanUserDeleteNode())
 				{
-					if (graphNode->CanUserDeleteNode())
-					{
-						graphNodes.Add(graphNode);
-					}
+					graphNodes.Add(graphNode);
 				}
 			}
 
@@ -1791,9 +1789,22 @@ void FInputSequenceEditor::DeleteSelectedNodes()
 				if (InputSequence->NodeToStateMapping.Contains(graphNode->NodeGuid))
 				{
 					InputSequence->NodeToStateMapping[graphNode->NodeGuid]->Modify();
-
 					InputSequence->NodeToStateMapping.Remove(graphNode->NodeGuid);
-					InputSequence->GetStates().Remove(InputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+				}
+			}
+
+			for (UEdGraphNode* graphNode : graphNodes)
+			{
+				if (InputSequence->NodeToStateMapping.Contains(graphNode->NodeGuid))
+				{
+					for (TPair<FGuid, TObjectPtr<UInputSequenceState_Base>>& NodeToStateEntry : InputSequence->NodeToStateMapping)
+					{
+						if (NodeToStateEntry.Value->NextStates.Contains(InputSequence->NodeToStateMapping[graphNode->NodeGuid]))
+						{
+							NodeToStateEntry.Value->Modify();
+							NodeToStateEntry.Value->NextStates.Remove(InputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+						}
+					}
 				}
 			}
 
@@ -1812,7 +1823,9 @@ void FInputSequenceEditor::DeleteSelectedNodes()
 
 bool FInputSequenceEditor::CanDeleteNodes() const
 {
-	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(GetSelectedNodes()); SelectedIter; ++SelectedIter)
+	FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+
+	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 	{
 		UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
 		if (graphNode && graphNode->CanUserDeleteNode()) return true;
@@ -1827,10 +1840,8 @@ void FInputSequenceEditor::CopySelectedNodes()
 
 	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 	{
-		if (UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter))
-		{
-			graphNode->PrepareForCopying();
-		}
+		UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
+		graphNode->PrepareForCopying();
 	}
 
 	FString ExportedText;
@@ -1841,6 +1852,7 @@ void FInputSequenceEditor::CopySelectedNodes()
 bool FInputSequenceEditor::CanCopyNodes() const
 {
 	const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
+
 	for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 	{
 		UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
@@ -1856,7 +1868,8 @@ void FInputSequenceEditor::DeleteSelectedDuplicatableNodes()
 	{
 		if (graphEditor.IsValid())
 		{
-			const FGraphPanelSelectionSet OldSelectedNodes = graphEditor->GetSelectedNodes();
+			const FGraphPanelSelectionSet OldSelectedNodes = GetSelectedNodes();
+
 			graphEditor->ClearSelectionSet();
 
 			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(OldSelectedNodes); SelectedIter; ++SelectedIter)
@@ -1874,10 +1887,8 @@ void FInputSequenceEditor::DeleteSelectedDuplicatableNodes()
 
 			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(OldSelectedNodes); SelectedIter; ++SelectedIter)
 			{
-				if (UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter))
-				{
-					graphEditor->SetNodeSelection(graphNode, true);
-				}
+				UEdGraphNode* graphNode = Cast<UEdGraphNode>(*SelectedIter);
+				graphEditor->SetNodeSelection(graphNode, true);
 			}
 		}
 	}
@@ -1948,7 +1959,6 @@ void FInputSequenceEditor::PasteNodes()
 
 					if (UInputSequenceState_Base* state = DuplicateObject(prevOwningAsset->NodeToStateMapping[prevNodeGuid], InputSequence))
 					{
-						InputSequence->GetStates().Add(state);
 						InputSequence->NodeToStateMapping.Add(graphNode->NodeGuid, state);
 					}
 

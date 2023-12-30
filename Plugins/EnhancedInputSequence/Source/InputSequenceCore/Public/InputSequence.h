@@ -138,10 +138,10 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 
 public:
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UInputSequenceState_Base> RootState;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere)
 	TSet<TObjectPtr<UInputSequenceState_Base>> NextStates;
 
 	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) {}
@@ -238,12 +238,10 @@ public:
 	UPROPERTY()
 	UEdGraph* EdGraph;
 
-	UPROPERTY()
-	TMap<FGuid, TObjectPtr<UInputSequenceState_Base>> NodeToStateMapping;
-
 	TSet<TObjectPtr<UInputSequenceState_Base>>& GetEntryStates() { return EntryStates; }
 
-	TSet<TObjectPtr<UInputSequenceState_Base>>& GetStates() { return States; }
+	UPROPERTY(VisibleAnywhere)
+	TMap<FGuid, TObjectPtr<UInputSequenceState_Base>> NodeToStateMapping;
 
 #endif
 
@@ -265,7 +263,7 @@ public:
 	* @param requestKey				Request key
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void RequestReset(URequestKey* requestKey);
+	void RequestReset(URequestKey* requestKey) { RequestReset(nullptr, requestKey, true); }
 
 	/**
 	* Sets World Context for Input Sequence
@@ -295,11 +293,8 @@ protected:
 
 protected:
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere)
 	TSet<TObjectPtr<UInputSequenceState_Base>> EntryStates;
-
-	UPROPERTY()
-	TSet<TObjectPtr<UInputSequenceState_Base>> States;
 
 	/* Time interval, after which any active state will be reset if no any successful steps will be made within this interval (can be override in state). Zero value means reset will not trigger. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence", meta = (UIMin = 0.01, Min = 0.01, UIMax = 10, Max = 10, EditCondition = bHasResetTime))
