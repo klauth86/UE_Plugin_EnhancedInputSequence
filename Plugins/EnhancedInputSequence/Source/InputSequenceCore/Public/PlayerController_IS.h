@@ -15,11 +15,7 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player Controller IS")
 	void OnPreProcessInput(const float DeltaTime, const bool bGamePaused);
 
-	virtual void PreProcessInput(const float DeltaTime, const bool bGamePaused) override
-	{
-		Super::PreProcessInput(DeltaTime, bGamePaused);
-		OnPreProcessInput(DeltaTime, bGamePaused);
-	}
+	virtual void PreProcessInput(const float DeltaTime, const bool bGamePaused) override;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player Controller IS")
 	void OnPostProcessInput(const float DeltaTime, const bool bGamePaused);

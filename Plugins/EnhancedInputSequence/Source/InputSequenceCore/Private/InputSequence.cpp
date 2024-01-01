@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2023 Pentangle Studio under EULA https://www.unrealengine.com/en-US/eula/unreal
 
 #include "InputSequence.h"
 #include "PlayerController_IS.h"
@@ -103,7 +103,7 @@ void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls, co
 		inputActionInfoEntry.Value.Reset();
 	}
 
-	ResetTimeLeft = ResetTime > 0 ? ResetTime : resetTime;
+	ResetTimeLeft = bOverrideResetTime ? ResetTime : resetTime;
 }
 
 void UInputSequenceState_Input::OnPass(TArray<FEventRequest>& outEventCalls)
@@ -466,9 +466,17 @@ void UInputSequence::CacheRootStates()
 // PlayerController_IS
 //------------------------------------------------------
 
+void APlayerController_IS::PreProcessInput(const float DeltaTime, const bool bGamePaused)
+{
+	Super::PreProcessInput(DeltaTime, bGamePaused);
+
+	OnPreProcessInput(DeltaTime, bGamePaused);
+}
+
 void APlayerController_IS::PostProcessInput(const float DeltaTime, const bool bGamePaused)
 {
 	Super::PostProcessInput(DeltaTime, bGamePaused);
+	
 	OnPostProcessInput(DeltaTime, bGamePaused);
 
 	for (TPair<UInputAction*, ETriggerEvent>& InputActionEvent : InputActionEvents)
@@ -492,21 +500,20 @@ void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& 
 {
 	Super::ProcessInputStack(InputComponentStack, DeltaTime, bGamePaused);
 
-	TMap<UInputAction*, ETriggerEvent> enhancedActionInputStack;
+	TMap<UInputAction*, ETriggerEvent> inputActionEvents;
 
 	for (const FEnhancedActionKeyMapping& enhancedActionMapping : GetEnhancedActionMappings())
 	{
 		const FInputActionInstance* inputActionInstance = FindActionInstanceData(enhancedActionMapping.Action);
-		enhancedActionInputStack.Add(const_cast<UInputAction*>(enhancedActionMapping.Action.Get()), inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
+		inputActionEvents.Add(const_cast<UInputAction*>(enhancedActionMapping.Action.Get()), inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
 	}
 
 	TArray<FEventRequest> eventRequests;
-
 	TArray<FResetRequest> resetRequests;
 
 	for (UInputSequence* inputSequence : InputSequences)
 	{
-		inputSequence->OnInput(DeltaTime, bGamePaused, enhancedActionInputStack, eventRequests, resetRequests);
+		inputSequence->OnInput(DeltaTime, bGamePaused, inputActionEvents, eventRequests, resetRequests);
 	}
 
 	for (const FEventRequest& eventRequest : eventRequests)
