@@ -166,18 +166,21 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 				{
 				case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
 				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates.IsEmpty() ? inputState->RootStates : inputState->NextStates, outEventCalls); break;
-				case EConsumeInputResponse::NONE: break;
-				default: check(0); break;
-				}
-			}
-
-			if (!bGamePaused || bTickWhenGamePaused)
-			{
-				switch (OnTick(deltaTime, inputState))
+				case EConsumeInputResponse::NONE:
 				{
-				case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
-				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates.IsEmpty() ? inputState->RootStates : inputState->NextStates, outEventCalls); break;
-				case EConsumeInputResponse::NONE: break;
+					if (!bGamePaused || bTickWhenGamePaused)
+					{
+						switch (OnTick(deltaTime, inputState))
+						{
+						case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
+						case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates.IsEmpty() ? inputState->RootStates : inputState->NextStates, outEventCalls); break;
+						case EConsumeInputResponse::NONE: break;
+						default: check(0); break;
+						}
+					}
+
+					break;
+				}
 				default: check(0); break;
 				}
 			}
@@ -474,6 +477,13 @@ void APlayerController_IS::PostProcessInput(const float DeltaTime, const bool bG
 	}
 }
 
+void APlayerController_IS::RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent)
+{
+	if (!InputActionEvents.Contains(inputAction) || InputActionEvents[inputAction] == ETriggerEvent::None)
+	{
+		InputActionEvents.FindOrAdd(inputAction) = triggerEvent;
+	}
+}
 //------------------------------------------------------
 // UEnhancedPlayerInput_IS
 //------------------------------------------------------
