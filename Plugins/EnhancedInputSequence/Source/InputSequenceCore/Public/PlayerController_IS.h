@@ -27,7 +27,7 @@ public:
 	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Player Controller IS")
-	void RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent) { InputActionEvents[inputAction] = triggerEvent; }
+	void RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent) { InputActionEvents.FindOrAdd(inputAction) = triggerEvent; }
 
 protected:
 

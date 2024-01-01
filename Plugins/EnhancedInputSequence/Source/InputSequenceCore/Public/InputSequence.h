@@ -145,7 +145,7 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 public:
 
 	UPROPERTY()
-	TObjectPtr<UInputSequenceState_Base> RootState;
+	TSet<TObjectPtr<UInputSequenceState_Base>> RootStates;
 
 	UPROPERTY()
 	TSet<TObjectPtr<UInputSequenceState_Base>> NextStates;

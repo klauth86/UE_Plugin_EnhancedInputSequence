@@ -24,7 +24,7 @@ UWorld* UInputSequenceEvent::GetWorld() const
 
 FInputActionInfo::FInputActionInfo()
 {
-	TriggerEvent = ETriggerEvent::Started;
+	TriggerEvent = ETriggerEvent::Completed;
 	bIsPassed = 0;
 	bRequireStrongMatch = 0;
 	bRequirePreciseMatch = 0;
@@ -44,7 +44,7 @@ void FInputActionInfo::Reset()
 
 UInputSequenceState_Base::UInputSequenceState_Base(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
 {
-	RootState = nullptr;
+	RootStates.Empty();
 	NextStates.Empty();
 }
 
@@ -165,7 +165,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 				switch (OnInput(actionStateData, inputState))
 				{
 				case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
-				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates, outEventCalls); break;
+				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates.IsEmpty() ? inputState->RootStates : inputState->NextStates, outEventCalls); break;
 				case EConsumeInputResponse::NONE: break;
 				default: check(0); break;
 				}
@@ -176,7 +176,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 				switch (OnTick(deltaTime, inputState))
 				{
 				case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
-				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates, outEventCalls); break;
+				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates.IsEmpty() ? inputState->RootStates : inputState->NextStates, outEventCalls); break;
 				case EConsumeInputResponse::NONE: break;
 				default: check(0); break;
 				}
@@ -199,8 +199,6 @@ void UInputSequence::RequestReset(const TObjectPtr<UInputSequenceState_Base> sta
 
 void UInputSequence::MakeTransition(UInputSequenceState_Base* fromState, const TSet<TObjectPtr<UInputSequenceState_Base>>& toStates, TArray<FEventRequest>& outEventCalls)
 {
-	check(toStates.Num() > 0);
-
 	if (fromState)
 	{
 		PassState(fromState, outEventCalls);
@@ -228,13 +226,13 @@ void UInputSequence::EnterState(UInputSequenceState_Base* state, TArray<FEventRe
 		}
 		else if (UInputSequenceState_Hub* hubState = Cast<UInputSequenceState_Hub>(state))
 		{
-			MakeTransition(hubState, hubState->NextStates, outEventCalls);
+			MakeTransition(hubState, state->NextStates.IsEmpty() ? state->RootStates : state->NextStates, outEventCalls);
 		}
 		else if (UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(state))
 		{
 			if (inputState->InputActionInfos.IsEmpty())
 			{
-				MakeTransition(inputState, inputState->NextStates, outEventCalls); // Jump through empty states
+				MakeTransition(inputState, state->NextStates.IsEmpty() ? state->RootStates : state->NextStates, outEventCalls); // Jump through empty states
 			}
 		}
 	}
@@ -414,13 +412,10 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 
 			// If stateToReset is Root State itself then it should stay active
 
-			if (stateToReset->RootState != nullptr)
-			{
-				ActiveStates.Remove(stateToReset);
-				stateToReset->OnReset(outEventCalls);
+			ActiveStates.Remove(stateToReset);
+			stateToReset->OnReset(outEventCalls);
 
-				MakeTransition(nullptr, { stateToReset->RootState }, outEventCalls);
-			}
+			MakeTransition(nullptr, stateToReset->RootStates, outEventCalls);
 		}
 	}
 }
@@ -435,7 +430,6 @@ void UInputSequence::CacheRootStates()
 
 	for (const TObjectPtr<UInputSequenceState_Base>& state : EntryStates)
 	{
-		state->RootState = nullptr;
 		stateLayer.States.Add(state);
 	}
 
@@ -447,7 +441,16 @@ void UInputSequence::CacheRootStates()
 		{
 			for (TObjectPtr<UInputSequenceState_Base>& nextState : state->NextStates)
 			{
-				nextState->RootState = state->IsA<UInputSequenceState_Input>() && state->RootState == nullptr ? state : state->RootState;
+				if (state->IsA<UInputSequenceState_Input>() && state->RootStates.IsEmpty())
+				{
+					state->RootStates.Add(state);
+					nextState->RootStates.Add(state);
+				}
+				else
+				{
+					nextState->RootStates = state->RootStates;
+				}
+
 				tmpLayer.States.Add(nextState);
 			}
 		}
