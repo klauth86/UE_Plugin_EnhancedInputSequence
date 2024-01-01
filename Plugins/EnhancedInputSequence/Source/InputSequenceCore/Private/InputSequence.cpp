@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "InputSequence.h"
+#include "PlayerController_IS.h"
+#include "EnhancedPlayerInput_IS.h"
 
 //------------------------------------------------------
 // UInputSequenceEvent
@@ -22,7 +24,7 @@ UWorld* UInputSequenceEvent::GetWorld() const
 
 FInputActionInfo::FInputActionInfo()
 {
-	TriggerEvent = ETriggerEvent::None;
+	TriggerEvent = ETriggerEvent::Started;
 	bIsPassed = 0;
 	bRequireStrongMatch = 0;
 	bRequirePreciseMatch = 0;
@@ -93,6 +95,8 @@ void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls, co
 		outEventCalls[emplacedIndex].RequestKey = RequestKey;
 		outEventCalls[emplacedIndex].Event = enterEvent;
 	}
+
+	InputActionPassCount = 0;
 
 	for (TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
 	{
@@ -247,48 +251,93 @@ void UInputSequence::PassState(UInputSequenceState_Base* state, TArray<FEventReq
 
 EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETriggerEvent>& actionStateDatas, UInputSequenceState_Input* state)
 {
-	// Check Wait Time
+	TSet<UInputAction*> inputActions;
 
-	////// TODO
-	//////for (const TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
-	//////{
-	//////	if (inputActionInfoEntry.Value.WaitTimeLeft > 0)
-	//////	{
-	//////		if (!actionStateDatas.Contains(inputActionInfoEntry.Key))
-	//////		{
-	//////			return EConsumeInputResponse::RESET;
-	//////		}
-	//////		else if (*actionStateDatas.Find(inputActionInfoEntry.Key) != inputActionInfoEntry.Value.TriggerEvent)
-	//////		{
-	//////			return EConsumeInputResponse::RESET;
-	//////		}
-	//////	}
-	//////}
+	// Actual actions to check
 
-	//////for (const TPair<UInputAction*, ETriggerEvent>& actionStateData : actionStateDatas)
-	//////{		
-	//////	const ETriggerEvent triggerEvent = actionStateData.Value;
+	for (const TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
+	{
+		if (UInputAction* inputAction = Cast<UInputAction>(inputActionInfoEntry.Key.TryLoad()))
+		{
+			inputActions.FindOrAdd(inputAction);
+		}
+	}
 
-	//////	if (state->InputActionInfos.Contains(actionStateData.Key))
-	//////	{
-	//////		FInputActionInfo* inputActionInfo = state->InputActionInfos.Find(actionStateData.Key);
+	// Check state Precise Match
 
-	//////		if (inputActionInfo->TriggerEvent == triggerEvent && inputActionInfo->WaitTimeLeft == 0)
-	//////		{
-	//////			inputActionInfo->SetIsPassed();
+	if (state->bRequirePreciseMatch)
+	{
+		for (UInputAction* inputAction : inputActions)
+		{
+			if (!actionStateDatas.Contains(inputAction) || actionStateDatas[inputAction] == ETriggerEvent::None)
+			{
+				return EConsumeInputResponse::RESET;
+			}
+		}
 
-	//////			for (const TPair<UInputAction*, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
-	//////			{
-	//////				if (!inputActionInfoEntry.Value.IsPassed())
-	//////				{
-	//////					return EConsumeInputResponse::NONE;
-	//////				}
-	//////			}
+		for (const TPair<UInputAction*, ETriggerEvent>& actionStateData : actionStateDatas)
+		{
+			if (actionStateData.Value == ETriggerEvent::None) continue;
 
-	//////			return EConsumeInputResponse::PASSED;
-	//////		}
-	//////	}
-	//////}
+			if (!inputActions.Contains(actionStateData.Key))
+			{
+				return EConsumeInputResponse::RESET;
+			}
+		}
+	}
+
+	for (UInputAction* inputAction : inputActions)
+	{
+		FSoftObjectPath inputActionPath(inputAction);
+
+		if (state->InputActionInfos.Contains(inputActionPath))
+		{
+			// Check actions Wait Time
+
+			if (state->InputActionInfos[inputActionPath].WaitTimeLeft > 0)
+			{
+				if (!actionStateDatas.Contains(inputAction) || actionStateDatas[inputAction] != state->InputActionInfos[inputActionPath].TriggerEvent)
+				{
+					return EConsumeInputResponse::RESET;
+				}
+			}
+
+			// Check actions Precise Match
+
+			if (state->InputActionInfos[inputActionPath].bRequirePreciseMatch)
+			{
+				if (!actionStateDatas.Contains(inputAction) || actionStateDatas[inputAction] != state->InputActionInfos[inputActionPath].TriggerEvent)
+				{
+					return EConsumeInputResponse::RESET;
+				}
+			}
+
+			// Check actions Strong Match
+
+			if (state->InputActionInfos[inputActionPath].bRequireStrongMatch)
+			{
+				if (actionStateDatas.Contains(inputAction) && actionStateDatas[inputAction] != state->InputActionInfos[inputActionPath].TriggerEvent &&
+					actionStateDatas[inputAction] != ETriggerEvent::None)
+				{
+					return EConsumeInputResponse::RESET;
+				}
+			}
+
+			if (!state->InputActionInfos[inputActionPath].IsPassed())
+			{
+				if (actionStateDatas.Contains(inputAction) && actionStateDatas[inputAction] == state->InputActionInfos[inputActionPath].TriggerEvent)
+				{
+					state->InputActionInfos[inputActionPath].SetIsPassed();
+					state->InputActionPassCount++;
+
+					if (state->InputActionInfos.Num() == state->InputActionPassCount)
+					{
+						return EConsumeInputResponse::PASSED;
+					}
+				}
+			}
+		}
+	}
 
 	return EConsumeInputResponse::NONE;
 }
@@ -313,7 +362,7 @@ EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, UInputSequen
 
 		if (state->ResetTimeLeft == 0)
 		{
-			//return EConsumeInputResponse::RESET;
+			return EConsumeInputResponse::RESET;
 		}
 	}
 
@@ -404,5 +453,51 @@ void UInputSequence::CacheRootStates()
 		}
 
 		stateLayer.States = tmpLayer.States;
+	}
+}
+
+//------------------------------------------------------
+// PlayerController_IS
+//------------------------------------------------------
+
+void APlayerController_IS::PostProcessInput(const float DeltaTime, const bool bGamePaused)
+{
+	Super::PostProcessInput(DeltaTime, bGamePaused);
+	OnPostProcessInput(DeltaTime, bGamePaused);
+
+	for (TPair<UInputAction*, ETriggerEvent>& InputActionEvent : InputActionEvents)
+	{
+		InputActionEvent.Value = ETriggerEvent::None;
+	}
+}
+
+//------------------------------------------------------
+// UEnhancedPlayerInput_IS
+//------------------------------------------------------
+
+void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& InputComponentStack, const float DeltaTime, const bool bGamePaused)
+{
+	Super::ProcessInputStack(InputComponentStack, DeltaTime, bGamePaused);
+
+	TMap<UInputAction*, ETriggerEvent> enhancedActionInputStack;
+
+	for (const FEnhancedActionKeyMapping& enhancedActionMapping : GetEnhancedActionMappings())
+	{
+		const FInputActionInstance* inputActionInstance = FindActionInstanceData(enhancedActionMapping.Action);
+		enhancedActionInputStack.Add(const_cast<UInputAction*>(enhancedActionMapping.Action.Get()), inputActionInstance ? inputActionInstance->GetTriggerEvent() : ETriggerEvent::None);
+	}
+
+	TArray<FEventRequest> eventRequests;
+
+	TArray<FResetRequest> resetRequests;
+
+	for (UInputSequence* inputSequence : InputSequences)
+	{
+		inputSequence->OnInput(DeltaTime, bGamePaused, enhancedActionInputStack, eventRequests, resetRequests);
+	}
+
+	for (const FEventRequest& eventRequest : eventRequests)
+	{
+		eventRequest.Event->Execute(eventRequest.State, eventRequest.RequestKey, resetRequests);
 	}
 }

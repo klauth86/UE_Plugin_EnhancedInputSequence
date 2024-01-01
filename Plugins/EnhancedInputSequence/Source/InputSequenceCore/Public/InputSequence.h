@@ -196,6 +196,8 @@ public:
 	virtual void OnPass(TArray<FEventRequest>& outEventCalls) override;
 	virtual void OnReset(TArray<FEventRequest>& outEventCalls) override;
 
+	uint32 InputActionPassCount;
+
 	UPROPERTY()
 	TMap<FSoftObjectPath, FInputActionInfo> InputActionInfos;
 

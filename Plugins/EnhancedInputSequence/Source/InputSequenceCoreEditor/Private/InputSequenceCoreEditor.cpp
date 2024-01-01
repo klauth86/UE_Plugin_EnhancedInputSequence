@@ -361,6 +361,8 @@ private:
 // SGraphPin_Input
 //------------------------------------------------------
 
+bool bIsSliderValueChange = 0;
+
 class SGraphPin_Input : public SGridPanel
 {
 public:
@@ -425,6 +427,16 @@ protected:
 
 	FText GetPinFriendlyName() const;
 
+	void SetWaitTimeValue(const float NewValue) const;
+
+	void SetWaitTimeValueCommited(const float NewValue, ETextCommit::Type CommitType) const { SetWaitTimeValue(NewValue); }
+
+	TOptional<float> GetWaitTimeValue() const;
+
+	void OnBeginSliderMovement() const;
+
+	void OnEndSliderMovement(const float NewValue) const;
+
 	TSharedPtr<SButton> ButtonStartedPtr;
 	TSharedPtr<SButton> ButtonTriggeredPtr;
 	TSharedPtr<SButton> ButtonCompletedPtr;
@@ -439,13 +451,14 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	PinObject = InPin;
 
 	SetRowFill(0, 0);
+	SetRowFill(1, 0);
 	SetColumnFill(0, 1);
 	SetColumnFill(1, 0);
 	SetColumnFill(2, 0);
 
-	AddSlot(0, 0)
+	AddSlot(0, 0).RowSpan(2).Padding(2 * padding, padding)
 		[
-			SNew(SBox).MinDesiredWidth(64).VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(4 * padding, padding)
+			SNew(SBox).MinDesiredWidth(64).VAlign(VAlign_Center).HAlign(HAlign_Center)
 				[
 					SNew(STextBlock).Text_Raw(this, &SGraphPin_Input::GetPinFriendlyName).Font(pinFontInfo).ColorAndOpacity(this, &SGraphPin_Input::GetPinTextColor).AutoWrapText(true)
 				]
@@ -455,7 +468,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 		[
 			SNew(SHorizontalBox)
 
-			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, padding, 0, 0)
+			+ SHorizontalBox::Slot().FillWidth(1).Padding(0, padding, 0, 0)
 			[
 				SAssignNew(ButtonStartedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 					.Cursor(EMouseCursor::Hand)
@@ -558,7 +571,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			]
 		];
 
-	AddSlot(2, 0).VAlign(VAlign_Center).Padding(2 * padding)
+	AddSlot(2, 0).RowSpan(2).VAlign(VAlign_Center).Padding(2 * padding, padding)
 		[
 			SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
@@ -571,6 +584,24 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 				[
 					SNew(SImage).Image(FAppStyle::GetBrush("Cross"))
 				]
+		];
+
+	AddSlot(1, 1).VAlign(VAlign_Center).Padding(0, 0, 0, padding)
+		[
+			SNew(SNumericEntryBox<float>).SpinBoxStyle(&spinBoxStyle)
+				.Font(pinFontInfo)
+				.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_WaitTime", "Wait Time"))
+				.AllowSpin(true)
+				.MinValue(0)
+				.MaxValue(10)
+				.MinSliderValue(0)
+				.MaxSliderValue(10)
+				.Delta(0.01f)
+				.OnBeginSliderMovement(this, &SGraphPin_Input::OnBeginSliderMovement)
+				.OnEndSliderMovement(this, &SGraphPin_Input::OnEndSliderMovement)
+				.Value(this, &SGraphPin_Input::GetWaitTimeValue)
+				.OnValueChanged(this, &SGraphPin_Input::SetWaitTimeValue)
+				.OnValueCommitted(this, &SGraphPin_Input::SetWaitTimeValueCommited)
 		];
 
 	SetToolTip(SNew(SToolTip_Dummy));
@@ -788,6 +819,56 @@ FText SGraphPin_Input::ToolTipText(const ETriggerEvent triggerEvent) const
 FSlateColor SGraphPin_Input::GetPinTextColor() const { return PinObject && PinObject->DefaultObject.IsResolved() && PinObject->DefaultObject.operator bool() ? FLinearColor::White : FLinearColor::Red; }
 
 FText SGraphPin_Input::GetPinFriendlyName() const { return PinObject && PinObject->DefaultObject ? FText::FromString(PinObject->DefaultObject->GetName()) : LOCTEXT("SGraphPin_Input_PinFriendlyName", "???"); }
+
+void SGraphPin_Input::SetWaitTimeValue(const float NewValue) const
+{
+	UEdGraphNode* graphNode = PinObject->GetOwningNode();
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+	if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].WaitTime != NewValue)
+	{
+		if (!bIsSliderValueChange)
+		{
+			const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::SetWaitTimeValue", "Wait Time"));
+
+			inputState->Modify();
+
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].WaitTime = NewValue;
+		}
+		else
+		{
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].WaitTime = NewValue;
+		}
+	}
+}
+
+TOptional<float> SGraphPin_Input::GetWaitTimeValue() const
+{
+	UEdGraphNode* graphNode = PinObject->GetOwningNode();
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+	return inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].WaitTime;
+}
+
+void SGraphPin_Input::OnBeginSliderMovement() const
+{
+	bIsSliderValueChange = 1;
+
+	UEdGraphNode* graphNode = PinObject->GetOwningNode();
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+	const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::OnBeginSliderMovement", "Wait Time"));
+
+	inputState->Modify();
+}
+
+void SGraphPin_Input::OnEndSliderMovement(const float NewValue) const
+{
+	bIsSliderValueChange = 0;
+}
 
 //------------------------------------------------------
 // SInputSequenceGraphNode_Input

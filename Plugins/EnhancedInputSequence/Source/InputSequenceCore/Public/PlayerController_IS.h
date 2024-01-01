@@ -24,14 +24,10 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Player Controller IS")
 	void OnPostProcessInput(const float DeltaTime, const bool bGamePaused);
 
-	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override
-	{
-		Super::PostProcessInput(DeltaTime, bGamePaused);
-		OnPostProcessInput(DeltaTime, bGamePaused);
-	}
+	virtual void PostProcessInput(const float DeltaTime, const bool bGamePaused) override;
 
 	UFUNCTION(BlueprintCallable, Category = "Player Controller IS")
-	void RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent) { InputActionEvents.Add(inputAction, triggerEvent); }
+	void RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent) { InputActionEvents[inputAction] = triggerEvent; }
 
 protected:
 
