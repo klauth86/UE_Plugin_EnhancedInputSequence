@@ -122,6 +122,9 @@ public:
 	uint8 bIsPassed : 1;
 
 	UPROPERTY()
+	uint8 bRequireStrongMatch : 1;
+
+	UPROPERTY()
 	uint8 bRequirePreciseMatch : 1;
 
 	UPROPERTY()

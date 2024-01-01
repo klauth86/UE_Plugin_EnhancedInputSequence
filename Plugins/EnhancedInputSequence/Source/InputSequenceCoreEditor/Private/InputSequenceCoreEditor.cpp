@@ -70,8 +70,9 @@ const FCheckBoxStyle checkBoxStyle = FCheckBoxStyle()
 .SetUndeterminedPressedImage(FSlateImageBrush(FPaths::EngineContentDir() / TEXT("Slate") / "Common/CheckBox_Undetermined_Hovered" + extention, Icon8x8, FLinearColor(0.5f, 0.5f, 0.5f)));
 
 const FSlateFontInfo pinFontInfo(FCoreStyle::GetDefaultFont(), 6, "Regular");
-const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 8, "Regular");
-const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 8, "Bold");
+const FSlateFontInfo pinFontInfo_Selected(FCoreStyle::GetDefaultFont(), 6, "Bold");
+const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 10, "Regular");
+const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 10, "Bold");
 const float padding = 2;
 
 const FName NAME_NoBorder("NoBorder");
@@ -388,13 +389,37 @@ protected:
 
 	FSlateColor GetTriggerEventForegroundColor(const TSharedPtr<SButton>& buttonPtr, const ETriggerEvent triggerEvent) const;
 
-	FSlateFontInfo GetTriggerEventFont_Started() const { return GetTriggerEventFont(ButtonStartedPtr, ETriggerEvent::Started); }
+	FSlateFontInfo GetTriggerEventFont_Started() const { return GetTriggerEventFont(ETriggerEvent::Started); }
 
-	FSlateFontInfo GetTriggerEventFont_Triggered() const { return GetTriggerEventFont(ButtonTriggeredPtr, ETriggerEvent::Triggered); }
+	FSlateFontInfo GetTriggerEventFont_Triggered() const { return GetTriggerEventFont(ETriggerEvent::Triggered); }
 
-	FSlateFontInfo GetTriggerEventFont_Completed() const { return GetTriggerEventFont(ButtonCompletedPtr, ETriggerEvent::Completed); }
+	FSlateFontInfo GetTriggerEventFont_Completed() const { return GetTriggerEventFont(ETriggerEvent::Completed); }
 
-	FSlateFontInfo GetTriggerEventFont(const TSharedPtr<SButton>& buttonPtr, const ETriggerEvent triggerEvent) const;
+	FSlateFontInfo GetTriggerEventFont(const ETriggerEvent triggerEvent) const;
+
+	EVisibility GetTriggerEventStrongMatchVisibility_Started() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Started); }
+
+	EVisibility GetTriggerEventStrongMatchVisibility_Triggered() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Triggered); }
+
+	EVisibility GetTriggerEventStrongMatchVisibility_Completed() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Completed); }
+
+	EVisibility GetTriggerEventStrongMatchVisibility(const ETriggerEvent triggerEvent) const;
+
+	EVisibility GetTriggerEventPreciseMatchVisibility_Started() const { return GetTriggerEventPreciseMatchVisibility(ETriggerEvent::Started); }
+
+	EVisibility GetTriggerEventPreciseMatchVisibility_Triggered() const { return GetTriggerEventPreciseMatchVisibility(ETriggerEvent::Triggered); }
+
+	EVisibility GetTriggerEventPreciseMatchVisibility_Completed() const { return GetTriggerEventPreciseMatchVisibility(ETriggerEvent::Completed); }
+
+	EVisibility GetTriggerEventPreciseMatchVisibility(const ETriggerEvent triggerEvent) const;
+
+	FText ToolTipText_Started() const { return ToolTipText(ETriggerEvent::Started); }
+
+	FText ToolTipText_Triggered() const { return ToolTipText(ETriggerEvent::Triggered); }
+
+	FText ToolTipText_Completed() const { return ToolTipText(ETriggerEvent::Completed); }
+
+	FText ToolTipText(const ETriggerEvent triggerEvent) const;
 
 	FSlateColor GetPinTextColor() const;
 
@@ -418,9 +443,12 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 	SetColumnFill(1, 0);
 	SetColumnFill(2, 0);
 
-	AddSlot(0, 0).VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(2 * padding, padding)
+	AddSlot(0, 0)
 		[
-			SNew(STextBlock).Text_Raw(this, &SGraphPin_Input::GetPinFriendlyName).Font(pinFontInfo).ColorAndOpacity(this, &SGraphPin_Input::GetPinTextColor).AutoWrapText(true)
+			SNew(SBox).MinDesiredWidth(64).VAlign(VAlign_Center).HAlign(HAlign_Center).Padding(4 * padding, padding)
+				[
+					SNew(STextBlock).Text_Raw(this, &SGraphPin_Input::GetPinFriendlyName).Font(pinFontInfo).ColorAndOpacity(this, &SGraphPin_Input::GetPinTextColor).AutoWrapText(true)
+				]
 		];
 
 	AddSlot(1, 0).VAlign(VAlign_Center)
@@ -431,12 +459,33 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			[
 				SAssignNew(ButtonStartedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 					.Cursor(EMouseCursor::Hand)
-					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_Started", "Started"))
+					.ToolTipText_Raw(this, &SGraphPin_Input::ToolTipText_Started)
 					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Started)
 					[
-						SNew(STextBlock).Text(FText::FromString("S"))
-							.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Started)
-							.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Started)
+						SNew(SGridPanel).FillColumn(0, 0).FillColumn(1, 0)
+
+							+ SGridPanel::Slot(0, 0)
+							[
+								SNew(STextBlock).Text(FText::FromString("S"))
+									.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Started)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Started)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("~"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Started)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventStrongMatchVisibility_Started)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("!"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Started)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventPreciseMatchVisibility_Started)
+							]
 					]
 			]
 
@@ -444,12 +493,33 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			[
 				SAssignNew(ButtonTriggeredPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 					.Cursor(EMouseCursor::Hand)
-					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_Triggered", "Triggered"))
+					.ToolTipText_Raw(this, &SGraphPin_Input::ToolTipText_Triggered)
 					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Triggered)
 					[
-						SNew(STextBlock).Text(FText::FromString("T"))
-							.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Triggered)
-							.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Triggered)
+						SNew(SGridPanel).FillColumn(0, 0).FillColumn(1,0)
+
+							+ SGridPanel::Slot(0, 0)
+							[
+								SNew(STextBlock).Text(FText::FromString("T"))
+									.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Triggered)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Triggered)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("~"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Triggered)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventStrongMatchVisibility_Triggered)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("!"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Triggered)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventPreciseMatchVisibility_Triggered)
+							]
 					]
 			]
 
@@ -457,17 +527,38 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 			[
 				SAssignNew(ButtonCompletedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 					.Cursor(EMouseCursor::Hand)
-					.ToolTipText(LOCTEXT("SGraphPin_Input_TooltipText_Completed", "Completed"))
+					.ToolTipText_Raw(this, &SGraphPin_Input::ToolTipText_Completed)
 					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Completed)
 					[
-						SNew(STextBlock).Text(FText::FromString("C"))
-							.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Completed)
-							.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
+						SNew(SGridPanel).FillColumn(0, 0).FillColumn(1, 0)
+
+						+SGridPanel::Slot(0, 0)
+							[
+								SNew(STextBlock).Text(FText::FromString("C"))
+									.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Completed)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("~"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventStrongMatchVisibility_Completed)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("!"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventPreciseMatchVisibility_Completed)
+							]
 					]
 			]
 		];
 
-	AddSlot(2, 0).VAlign(VAlign_Center).Padding(padding)
+	AddSlot(2, 0).VAlign(VAlign_Center).Padding(2 * padding)
 		[
 			SNew(SButton)
 				.ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
@@ -526,7 +617,27 @@ FReply SGraphPin_Input::SetTriggerEvent(const ETriggerEvent triggerEvent) const
 		const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input_SetTriggerEvent", "Trigger Event"));
 
 		inputState->Modify();
-		inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent = triggerEvent;
+
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent != triggerEvent)
+		{
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch = false;
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch = false;
+
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent = triggerEvent;
+		}
+		else if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+		{
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch = false;
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch = false;
+		}
+		else if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch)
+		{
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch = true;
+		}
+		else
+		{
+			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch = true;
+		}
 	}
 
 	return FReply::Handled();
@@ -553,7 +664,7 @@ FSlateColor SGraphPin_Input::GetTriggerEventForegroundColor(const TSharedPtr<SBu
 	return color;
 }
 
-FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const TSharedPtr<SButton>& buttonPtr, const ETriggerEvent triggerEvent) const
+FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const ETriggerEvent triggerEvent) const
 {
 	if (PinObject && PinObject->DefaultObject)
 	{
@@ -568,6 +679,110 @@ FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const TSharedPtr<SButton>& b
 	}
 
 	return inputEventFontInfo;
+}
+
+EVisibility SGraphPin_Input::GetTriggerEventStrongMatchVisibility(const ETriggerEvent triggerEvent) const
+{
+	if (PinObject && PinObject->DefaultObject)
+	{
+		UEdGraphNode* graphNode = PinObject->GetOwningNode();
+		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
+		{
+			if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch &&
+				!inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+			{
+				return EVisibility::Visible;
+			}
+		}
+	}
+
+	return EVisibility::Hidden;
+}
+
+EVisibility SGraphPin_Input::GetTriggerEventPreciseMatchVisibility(const ETriggerEvent triggerEvent) const
+{
+	if (PinObject && PinObject->DefaultObject)
+	{
+		UEdGraphNode* graphNode = PinObject->GetOwningNode();
+		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
+		{
+			if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+			{
+				return EVisibility::Visible;
+			}
+		}
+	}
+
+	return EVisibility::Hidden;
+}
+
+FText SGraphPin_Input::ToolTipText(const ETriggerEvent triggerEvent) const
+{
+	UEdGraphNode* graphNode = PinObject->GetOwningNode();
+	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
+	UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->NodeToStateMapping[graphNode->NodeGuid]);
+
+	switch (triggerEvent)
+	{
+	case ETriggerEvent::Started:
+	{
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Started_P", "Started (Precise)");
+		}
+		else if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Started_S", "Started (Strong)");
+		}
+		else
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Started", "Started");
+		}
+	}
+	break;
+
+	case ETriggerEvent::Triggered:
+	{
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Triggered_P", "Triggered (Precise)");
+		}
+		else if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Triggered_S", "Triggered (Strong)");
+		}
+		else
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Triggered", "Triggered");
+		}
+	}
+	break;
+
+	case ETriggerEvent::Completed:
+	{
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Completed_P", "Completed (Precise)");
+		}
+		else if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Completed_S", "Completed (Strong)");
+		}
+		else
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Completed", "Completed");
+		}
+	}
+	break;
+	}
+
+	return FText::GetEmpty();
 }
 
 FSlateColor SGraphPin_Input::GetPinTextColor() const { return PinObject && PinObject->DefaultObject.IsResolved() && PinObject->DefaultObject.operator bool() ? FLinearColor::White : FLinearColor::Red; }

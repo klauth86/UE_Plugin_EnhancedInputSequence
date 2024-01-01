@@ -24,6 +24,7 @@ FInputActionInfo::FInputActionInfo()
 {
 	TriggerEvent = ETriggerEvent::None;
 	bIsPassed = 0;
+	bRequireStrongMatch = 0;
 	bRequirePreciseMatch = 0;
 	WaitTime = 0;
 	WaitTimeLeft = 0;
@@ -362,10 +363,15 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 		{
 			check(ActiveStates.Contains(stateToReset));
 
-			ActiveStates.Remove(stateToReset);
-			stateToReset->OnReset(outEventCalls);
+			// If stateToReset is Root State itself then it should stay active
 
-			MakeTransition(nullptr, { stateToReset->RootState }, outEventCalls);
+			if (stateToReset->RootState != nullptr)
+			{
+				ActiveStates.Remove(stateToReset);
+				stateToReset->OnReset(outEventCalls);
+
+				MakeTransition(nullptr, { stateToReset->RootState }, outEventCalls);
+			}
 		}
 	}
 }
