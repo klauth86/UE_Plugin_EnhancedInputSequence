@@ -147,7 +147,7 @@ public:
 	UPROPERTY()
 	TSet<TObjectPtr<UInputSequenceState_Base>> NextStates;
 
-	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) {}
+	virtual void OnEnter(TArray<FEventRequest>& outEventCalls, const float resetTime) {}
 	virtual void OnPass(TArray<FEventRequest>& outEventCalls) {}
 	virtual void OnReset(TArray<FEventRequest>& outEventCalls) {}
 };
@@ -183,13 +183,13 @@ public:
 //------------------------------------------------------
 
 UCLASS()
-class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UInputSequenceState_Hub
+class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UInputSequenceState_Base
 {
 	GENERATED_UCLASS_BODY()
 
 public:
 
-	virtual void OnEnter(TArray<FEventRequest>& outEventCalls) override;
+	virtual void OnEnter(TArray<FEventRequest>& outEventCalls, const float resetTime) override;
 	virtual void OnPass(TArray<FEventRequest>& outEventCalls) override;
 	virtual void OnReset(TArray<FEventRequest>& outEventCalls) override;
 
@@ -232,7 +232,7 @@ public:
 UCLASS(BlueprintType)
 class INPUTSEQUENCECORE_API UInputSequence : public UObject
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 public:
 
@@ -294,6 +294,8 @@ protected:
 
 	void ProcessResetSources(TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources);
 
+	void CacheRootStates();
+
 protected:
 
 	UPROPERTY()
@@ -310,6 +312,8 @@ protected:
 	/* If true, active states will continue to tick even if Game is paused (Input Sequence is ticking by OnInput method call) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Sequence")
 	uint8 bTickWhenGamePaused : 1;
+
+	uint8 bHasCachedRootStates : 1;
 
 	mutable FCriticalSection resetSourcesCS;
 

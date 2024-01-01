@@ -1202,7 +1202,7 @@ bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphP
 		PinA->Modify();
 		PinB->Modify();
 		PinA->BreakAllPinLinks(true);
-		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Empty();
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Remove(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
 		PinA->MakeLinkTo(PinB);
 		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
 		bModified = true;
@@ -1212,7 +1212,7 @@ bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphP
 		PinA->Modify();
 		PinB->Modify();
 		PinB->BreakAllPinLinks(true);
-		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Empty();
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Remove(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
 		PinA->MakeLinkTo(PinB);
 		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
 		bModified = true;
@@ -1223,7 +1223,7 @@ bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphP
 		PinB->Modify();
 		PinA->BreakAllPinLinks(true);
 		PinB->BreakAllPinLinks(true);
-		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Empty();
+		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.Remove(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
 		PinA->MakeLinkTo(PinB);
 		inputSequence->NodeToStateMapping[nodeA->NodeGuid]->NextStates.FindOrAdd(inputSequence->NodeToStateMapping[nodeB->NodeGuid]);
 		bModified = true;

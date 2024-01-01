@@ -83,7 +83,7 @@ UInputSequenceState_Input::UInputSequenceState_Input(const FObjectInitializer& O
 	ResetTimeLeft = 0;
 }
 
-void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls)
+void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls, const float resetTime)
 {
 	for (const TObjectPtr<UInputSequenceEvent>& enterEvent : EnterEvents)
 	{
@@ -97,6 +97,8 @@ void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls)
 	{
 		inputActionInfoEntry.Value.Reset();
 	}
+
+	ResetTimeLeft = ResetTime > 0 ? ResetTime : resetTime;
 }
 
 void UInputSequenceState_Input::OnPass(TArray<FEventRequest>& outEventCalls)
@@ -125,8 +127,20 @@ void UInputSequenceState_Input::OnReset(TArray<FEventRequest>& outEventCalls)
 // UInputSequence
 //------------------------------------------------------
 
+UInputSequence::UInputSequence(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+{
+	ResetTime = 0.5;
+	bHasCachedRootStates = 0;
+}
+
 void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, const TMap<UInputAction*, ETriggerEvent>& actionStateData, TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources)
 {
+	if (!bHasCachedRootStates)
+	{
+		CacheRootStates();
+		bHasCachedRootStates = 1;
+	}
+
 	if (ActiveStates.IsEmpty())
 	{
 		for (const TObjectPtr<UInputSequenceState_Base>& entryState : EntryStates)
@@ -147,6 +161,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 				{
 				case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
 				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates, outEventCalls); break;
+				case EConsumeInputResponse::NONE: break;
 				default: check(0); break;
 				}
 			}
@@ -157,6 +172,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 				{
 				case EConsumeInputResponse::RESET: RequestReset(inputState, inputState->RequestKey, false); break;
 				case EConsumeInputResponse::PASSED: MakeTransition(inputState, inputState->NextStates, outEventCalls); break;
+				case EConsumeInputResponse::NONE: break;
 				default: check(0); break;
 				}
 			}
@@ -198,7 +214,7 @@ void UInputSequence::EnterState(UInputSequenceState_Base* state, TArray<FEventRe
 {
 	if (!ActiveStates.Contains(state))
 	{
-		state->OnEnter(outEventCalls);
+		state->OnEnter(outEventCalls, ResetTime);
 		ActiveStates.Add(state);
 
 		if (UInputSequenceState_Reset* resetState = Cast<UInputSequenceState_Reset>(state))
@@ -296,7 +312,7 @@ EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, UInputSequen
 
 		if (state->ResetTimeLeft == 0)
 		{
-			return EConsumeInputResponse::RESET;
+			//return EConsumeInputResponse::RESET;
 		}
 	}
 
@@ -351,5 +367,36 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 
 			MakeTransition(nullptr, { stateToReset->RootState }, outEventCalls);
 		}
+	}
+}
+
+void UInputSequence::CacheRootStates()
+{
+	struct FInputSequenceStateLayer
+	{
+		TSet<TObjectPtr<UInputSequenceState_Base>> States;
+	}
+	stateLayer;
+
+	for (const TObjectPtr<UInputSequenceState_Base>& state : EntryStates)
+	{
+		state->RootState = nullptr;
+		stateLayer.States.Add(state);
+	}
+
+	while (stateLayer.States.Num() > 0)
+	{
+		FInputSequenceStateLayer tmpLayer;
+
+		for (const TObjectPtr<UInputSequenceState_Base>& state : stateLayer.States)
+		{
+			for (TObjectPtr<UInputSequenceState_Base>& nextState : state->NextStates)
+			{
+				nextState->RootState = state->IsA<UInputSequenceState_Input>() && state->RootState == nullptr ? state : state->RootState;
+				tmpLayer.States.Add(nextState);
+			}
+		}
+
+		stateLayer.States = tmpLayer.States;
 	}
 }
