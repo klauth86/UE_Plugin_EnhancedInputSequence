@@ -265,6 +265,8 @@ public:
 
 	void AddEntryStateId(const FGuid& stateId) { EntryStateIds.FindOrAdd(stateId); }
 
+	const TMap<FGuid, FInputSequenceStateCollection>& GetNextStateIds() const { return NextStateIds; }
+
 	void AddNextStateId(const FGuid& stateId, const FGuid& nextStateId) { NextStateIds.FindOrAdd(stateId).StateIds.FindOrAdd(nextStateId); }
 	
 	void RemoveNextStateId(const FGuid& stateId, const FGuid& nextStateId) { NextStateIds.FindOrAdd(stateId).StateIds.Remove(nextStateId); }

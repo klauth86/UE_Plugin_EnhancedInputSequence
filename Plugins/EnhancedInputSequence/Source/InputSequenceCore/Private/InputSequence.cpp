@@ -68,9 +68,12 @@ void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls, co
 {
 	InputActionPassCount = 0;
 
-	for (TPair<TObjectPtr<UInputAction>, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
+	if (InputActionInfos.Num() > 0)
 	{
-		inputActionInfoEntry.Value.Reset();
+		for (TPair<TObjectPtr<UInputAction>, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
+		{
+			inputActionInfoEntry.Value.Reset();
+		}
 	}
 
 	ResetTimeLeft = bOverrideResetTime ? ResetTime : resetTime;

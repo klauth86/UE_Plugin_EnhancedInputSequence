@@ -36,8 +36,6 @@
 #include "Styling/SlateTypes.h"
 #include <Styling/StyleColors.h>
 
-#include "UObject/ObjectSaveContext.h"
-
 #define LOCTEXT_NAMESPACE "FInputSequenceCoreEditor"
 
 const float InputFocusRadius = 2.f;
@@ -2216,20 +2214,25 @@ void FInputSequenceEditor::PasteNodes()
 				//Average position of nodes so we can move them while still maintaining relative distances to each other
 				FVector2D AvgNodePosition(0.0f, 0.0f);
 
+				UInputSequence* prevOwningAsset = nullptr;
+				TMap<FGuid, FGuid> prevToNewNodeGuidMapping;
+
 				for (TSet<UEdGraphNode*>::TIterator It(pastedGraphNodes); It; ++It)
 				{
 					UEdGraphNode* graphNode = *It;
 					AvgNodePosition.X += graphNode->NodePosX;
 					AvgNodePosition.Y += graphNode->NodePosY;
+
+					if (UInputSequenceGraphNode_Base* baseNode = Cast<UInputSequenceGraphNode_Base>(graphNode))
+					{
+						prevOwningAsset = baseNode->PrevOwningAsset;
+						prevToNewNodeGuidMapping.FindOrAdd(baseNode->NodeGuid);
+					}
 				}
 
 				float InvNumNodes = 1.0f / float(pastedGraphNodes.Num());
 				AvgNodePosition.X *= InvNumNodes;
 				AvgNodePosition.Y *= InvNumNodes;
-
-				UInputSequence* prevOwningAsset = Cast<UInputSequenceGraphNode_Base>(*pastedGraphNodes.begin())->PrevOwningAsset;
-
-				InputSequence->Modify();
 
 				for (TSet<UEdGraphNode*>::TIterator It(pastedGraphNodes); It; ++It)
 				{
@@ -2245,14 +2248,33 @@ void FInputSequenceEditor::PasteNodes()
 
 					const FGuid prevNodeGuid = graphNode->NodeGuid;
 
-					// Give new node a different Guid from the old one
 					graphNode->CreateNewGuid();
 
-					InputSequence->AddState(graphNode->NodeGuid, DuplicateObject(prevOwningAsset->GetState(prevNodeGuid), InputSequence));
-
-					if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(graphNode))
+					if (prevToNewNodeGuidMapping.Contains(prevNodeGuid))
 					{
-						inputGraphNode->PrevOwningAsset = nullptr;
+						prevToNewNodeGuidMapping[prevNodeGuid] = graphNode->NodeGuid;
+						Cast<UInputSequenceGraphNode_Base>(graphNode)->PrevOwningAsset = nullptr;
+					}
+				}
+
+				if (prevOwningAsset)
+				{
+					InputSequence->Modify();
+
+					for (const TPair<FGuid, FGuid>& prevToNewNodeGuidEntry : prevToNewNodeGuidMapping)
+					{
+						const FGuid prevNodeGuid = prevToNewNodeGuidEntry.Key;
+						const FGuid newNodeGuid = prevToNewNodeGuidEntry.Value;
+
+						InputSequence->AddState(newNodeGuid, DuplicateObject(prevOwningAsset->GetState(prevNodeGuid), InputSequence));
+
+						for (const FGuid& prevNextStateId : prevOwningAsset->GetNextStateIds()[prevNodeGuid].StateIds)
+						{
+							if (prevToNewNodeGuidMapping.Contains(prevNextStateId))
+							{
+								InputSequence->AddNextStateId(newNodeGuid, prevToNewNodeGuidMapping[prevNextStateId]);
+							}
+						}
 					}
 				}
 
