@@ -336,13 +336,16 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 			{
 				if (inputActionEvents.Contains(inputAction) && inputActionEvents[inputAction] == state->InputActionInfos[inputAction].TriggerEvent)
 				{
-					state->InputActionInfos[inputAction].SetIsPassed();
-					
-					state->InputActionPassCount++;
-
-					if (state->InputActionInfos.Num() == state->InputActionPassCount)
+					if (state->InputActionInfos[inputAction].WaitTimeLeft == 0)
 					{
-						return EConsumeInputResponse::PASSED;
+						state->InputActionInfos[inputAction].SetIsPassed();
+
+						state->InputActionPassCount++;
+
+						if (state->InputActionInfos.Num() == state->InputActionPassCount)
+						{
+							return EConsumeInputResponse::PASSED;
+						}
 					}
 				}
 			}
