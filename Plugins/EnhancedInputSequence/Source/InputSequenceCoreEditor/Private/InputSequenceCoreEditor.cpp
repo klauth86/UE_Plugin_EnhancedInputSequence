@@ -876,14 +876,26 @@ class SInputSequenceGraphNode_Input : public SInputSequenceGraphNode_Dynamic
 {
 protected:
 
+	virtual TSharedRef<SWidget> CreateTitleWidget(TSharedPtr<SNodeTitle> nodeTitle) override { return SInputSequenceGraphNode_Dynamic::CreateTitleWidget(NodeTitle = nodeTitle); }
+
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
 	virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) override;
 
 	TSharedRef<SWidget> OnGetAddButtonMenuContent();
 
 protected:
 
+	TSharedPtr<SNodeTitle> NodeTitle;
+
 	TSharedPtr<SComboButton> AddButton;
 };
+
+void SInputSequenceGraphNode_Input::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	NodeTitle->MarkDirty();
+	SInputSequenceGraphNode_Dynamic::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+}
 
 void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
 {
