@@ -1,0 +1,1 @@
+"D:\UE_5.1\Engine\Build\BatchFiles\RunUAT.bat" BuildPlugin -Plugin="D:\UE_Projects\UE_Plugin_EnhancedInputSequence\Plugins\EnhancedInputSequence\EnhancedInputSequence.uplugin" -Package="D:\UE_Projects\UE_Plugin_EnhancedInputSequence\Packaging\Tmp" -Rocket -VS2022

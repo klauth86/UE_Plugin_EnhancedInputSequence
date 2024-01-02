@@ -1,18 +1,15 @@
 // Copyright 2023 Pentangle Studio under EULA https://www.unrealengine.com/en-US/eula/unreal
 
 #include "InputSequenceCoreEditor.h"
+#include "InputSequenceCoreEditor_private.h"
 
 #include "Kismet/KismetTextLibrary.h"
 
-#include "Factories.h"
-#include "AssetTypeActions.h"
+#include "AssetTypeActions_Base.h"
 #include "AssetTypeCategories.h"
 #include "InputSequence.h"
-
 #include "InputAction.h"
 
-#include "InputSequenceGraphSchema.h"
-#include "InputSequenceGraphNodes.h"
 #include "EdGraphNode_Comment.h"
 
 #include "ConnectionDrawingPolicy.h"
@@ -407,7 +404,7 @@ void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 							SNew(STextBlock).Text(this, &SInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState).Visibility(EVisibility::HitTestInvisible)
 								.Font(resetTimeFontInfo)
 								.ColorAndOpacity(FColorList::Goldenrod)
-								.RenderOpacity(0.5f)
+								.RenderOpacity(0.7f)
 						]
 				]
 		];
@@ -2647,6 +2644,16 @@ bool FInputSequenceEditor::CanCreateComment() const
 // FAssetTypeActions_InputSequence
 //------------------------------------------------------
 
+class FAssetTypeActions_InputSequence : public FAssetTypeActions_Base
+{
+public:
+	virtual FText GetName() const override;
+	virtual UClass* GetSupportedClass() const override;
+	virtual FColor GetTypeColor() const override { return FColor(129, 50, 255); }
+	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor) override;
+	virtual uint32 GetCategories() override;
+};
+
 FText FAssetTypeActions_InputSequence::GetName() const { return LOCTEXT("FAssetTypeActions_InputSequence_Name", "Input Sequence"); }
 
 UClass* FAssetTypeActions_InputSequence::GetSupportedClass() const { return UInputSequence::StaticClass(); }
@@ -2670,6 +2677,15 @@ uint32 FAssetTypeActions_InputSequence::GetCategories() { return EAssetTypeCateg
 //------------------------------------------------------
 // FAssetTypeActions_RequestKey
 //------------------------------------------------------
+
+class FAssetTypeActions_RequestKey : public FAssetTypeActions_Base
+{
+public:
+	virtual FText GetName() const override;
+	virtual UClass* GetSupportedClass() const override;
+	virtual FColor GetTypeColor() const override { return FColor(129, 50, 255); }
+	virtual uint32 GetCategories() override;
+};
 
 FText FAssetTypeActions_RequestKey::GetName() const { return LOCTEXT("FAssetTypeActions_RequestKey_Name", "Request Key (for Input Sequence)"); }
 

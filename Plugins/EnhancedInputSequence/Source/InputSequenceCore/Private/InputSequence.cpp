@@ -1,8 +1,8 @@
 // Copyright 2023 Pentangle Studio under EULA https://www.unrealengine.com/en-US/eula/unreal
 
 #include "InputSequence.h"
-#include "PlayerController_IS.h"
-#include "EnhancedPlayerInput_IS.h"
+#include "PlayerController_EIS.h"
+#include "EnhancedPlayerInput_EIS.h"
 
 //------------------------------------------------------
 // UInputSequenceEvent
@@ -480,17 +480,17 @@ void UInputSequence::CacheRootStates()
 }
 
 //------------------------------------------------------
-// PlayerController_IS
+// PlayerController_EIS
 //------------------------------------------------------
 
-void APlayerController_IS::PreProcessInput(const float DeltaTime, const bool bGamePaused)
+void APlayerController_EIS::PreProcessInput(const float DeltaTime, const bool bGamePaused)
 {
 	OnPreProcessInput(DeltaTime, bGamePaused);
 
 	Super::PreProcessInput(DeltaTime, bGamePaused);
 }
 
-void APlayerController_IS::PostProcessInput(const float DeltaTime, const bool bGamePaused)
+void APlayerController_EIS::PostProcessInput(const float DeltaTime, const bool bGamePaused)
 {
 	Super::PostProcessInput(DeltaTime, bGamePaused);
 	
@@ -502,7 +502,7 @@ void APlayerController_IS::PostProcessInput(const float DeltaTime, const bool bG
 	}
 }
 
-void APlayerController_IS::RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent)
+void APlayerController_EIS::RegisterInputActionEvent(UInputAction* inputAction, ETriggerEvent triggerEvent)
 {
 	if (!InputActionEvents.Contains(inputAction) || InputActionEvents[inputAction] == ETriggerEvent::None)
 	{
@@ -510,10 +510,10 @@ void APlayerController_IS::RegisterInputActionEvent(UInputAction* inputAction, E
 	}
 }
 //------------------------------------------------------
-// UEnhancedPlayerInput_IS
+// UEnhancedPlayerInput_EIS
 //------------------------------------------------------
 
-void UEnhancedPlayerInput_IS::ProcessInputStack(const TArray<UInputComponent*>& InputComponentStack, const float DeltaTime, const bool bGamePaused)
+void UEnhancedPlayerInput_EIS::ProcessInputStack(const TArray<UInputComponent*>& InputComponentStack, const float DeltaTime, const bool bGamePaused)
 {
 	Super::ProcessInputStack(InputComponentStack, DeltaTime, bGamePaused);
 

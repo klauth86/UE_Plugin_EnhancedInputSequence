@@ -4,9 +4,166 @@
 
 #include "EdGraph/EdGraphSchema.h"
 #include "EdGraphUtilities.h"
-#include "InputSequenceGraphSchema.generated.h"
+#include "InputSequenceCoreEditor_private.generated.h"
 
+class URequestKey;
 class UInputAction;
+class UInputSequence;
+class UInputSequenceEvent;
+enum class ETriggerEvent :uint8;
+
+//------------------------------------------------------
+// UFactory_InputSequence
+//------------------------------------------------------
+
+UCLASS()
+class UFactory_InputSequence : public UFactory
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext) override;
+	virtual FText GetDisplayName() const override;
+	virtual uint32 GetMenuCategories() const override;
+};
+
+//------------------------------------------------------
+// UFactory_RequestKey
+//------------------------------------------------------
+
+UCLASS()
+class UFactory_RequestKey : public UFactory
+{
+	GENERATED_UCLASS_BODY()
+
+public:
+
+	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext) override;
+	virtual FText GetDisplayName() const override;
+	virtual uint32 GetMenuCategories() const override;
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Entry
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Entry : public UEdGraphNode
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual void AllocateDefaultPins() override;
+
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+
+	virtual FLinearColor GetNodeTitleColor() const override;
+
+	virtual FText GetTooltipText() const override;
+
+	virtual bool CanDuplicateNode() const { return false; }
+
+	virtual bool CanUserDeleteNode() const { return false; }
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Base
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Base : public UEdGraphNode
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual void PrepareForCopying() override;
+
+	virtual void AutowireNewNode(UEdGraphPin* FromPin) override;
+
+	UEdGraphPin* GetExecPin(EEdGraphPinDirection direction) const;
+
+	UPROPERTY()
+	TObjectPtr<UInputSequence> PrevOwningAsset;
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Dynamic
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Dynamic : public UInputSequenceGraphNode_Base
+{
+	GENERATED_BODY()
+
+public:
+
+	DECLARE_DELEGATE(FInvalidateWidgetEvent);
+
+	FInvalidateWidgetEvent OnUpdateGraphNode;
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Input
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Input : public UInputSequenceGraphNode_Dynamic
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual void AllocateDefaultPins() override;
+
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+
+	virtual FLinearColor GetNodeTitleColor() const override;
+
+	virtual FText GetTooltipText() const override;
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Hub
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Hub : public UInputSequenceGraphNode_Dynamic
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual void AllocateDefaultPins() override;
+
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+
+	virtual FLinearColor GetNodeTitleColor() const override;
+
+	virtual FText GetTooltipText() const override;
+};
+
+//------------------------------------------------------
+// UInputSequenceGraphNode_Reset
+//------------------------------------------------------
+
+UCLASS()
+class UInputSequenceGraphNode_Reset : public UInputSequenceGraphNode_Base
+{
+	GENERATED_BODY()
+
+public:
+
+	virtual void AllocateDefaultPins() override;
+
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+
+	virtual FLinearColor GetNodeTitleColor() const override;
+
+	virtual FText GetTooltipText() const override;
+};
 
 //------------------------------------------------------
 // UInputSequenceGraph

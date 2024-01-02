@@ -3,12 +3,12 @@
 #pragma once
 
 #include "EnhancedPlayerInput.h"
-#include "EnhancedPlayerInput_IS.generated.h"
+#include "EnhancedPlayerInput_EIS.generated.h"
 
 class UInputSequence;
 
 UCLASS()
-class INPUTSEQUENCECORE_API UEnhancedPlayerInput_IS : public UEnhancedPlayerInput
+class INPUTSEQUENCECORE_API UEnhancedPlayerInput_EIS : public UEnhancedPlayerInput
 {
 	GENERATED_BODY()
 
@@ -18,6 +18,6 @@ public:
 
 protected:
 
-	UPROPERTY(EditDefaultsOnly, Category = "IS Enhanced Player Input")
+	UPROPERTY(EditDefaultsOnly, Category = "EIS Enhanced Player Input")
 	TSet<TObjectPtr<UInputSequence>> InputSequences;
 };
