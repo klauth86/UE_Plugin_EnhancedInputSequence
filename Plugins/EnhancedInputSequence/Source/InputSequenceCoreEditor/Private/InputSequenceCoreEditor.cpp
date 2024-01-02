@@ -106,7 +106,7 @@ void AddPinToDynamicNode(UEdGraphNode* graphNode, FName category, FName pinName,
 		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(graphNode->NodeGuid));
 
 		inputState->Modify();
-		inputState->InputActionInfos.Add(inputAction, FInputActionInfo());
+		inputState->AddInputActionInfo(inputAction);
 	}
 
 	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
@@ -2689,7 +2689,7 @@ public:
 
 FText FAssetTypeActions_RequestKey::GetName() const { return LOCTEXT("FAssetTypeActions_RequestKey_Name", "Request Key (for Input Sequence)"); }
 
-UClass* FAssetTypeActions_RequestKey::GetSupportedClass() const { return URequestKey::StaticClass(); }
+UClass* FAssetTypeActions_RequestKey::GetSupportedClass() const { return UInputSequenceRequestKey::StaticClass(); }
 
 uint32 FAssetTypeActions_RequestKey::GetCategories() { return EAssetTypeCategories::Misc; }
 
@@ -2721,12 +2721,12 @@ UFactory_RequestKey::UFactory_RequestKey(const FObjectInitializer& ObjectInitial
 {
 	bCreateNew = true;
 	bEditAfterNew = true;
-	SupportedClass = URequestKey::StaticClass();
+	SupportedClass = UInputSequenceRequestKey::StaticClass();
 }
 
 UObject* UFactory_RequestKey::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
 {
-	return NewObject<URequestKey>(InParent, InClass, InName, Flags);
+	return NewObject<UInputSequenceRequestKey>(InParent, InClass, InName, Flags);
 }
 
 FText UFactory_RequestKey::GetDisplayName() const { return LOCTEXT("UFactory_RequestKey_DisplayName", "Request Key (for Input Sequence)"); }

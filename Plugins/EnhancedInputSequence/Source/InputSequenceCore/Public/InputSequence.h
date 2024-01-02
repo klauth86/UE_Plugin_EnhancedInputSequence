@@ -8,35 +8,38 @@
 class UEdGraph;
 class UInputAction;
 
-enum class EConsumeInputResponse :uint8
+namespace InputSequenceCore
 {
-	NONE,
-	RESET,
-	PASSED
+	enum class EConsumeInputResponse :uint8
+	{
+		NONE,
+		RESET,
+		PASSED
+	};
 };
 
 //------------------------------------------------------
-// URequestKey
+// UInputSequenceRequestKey
 //------------------------------------------------------
 
 UCLASS(BlueprintType)
-class INPUTSEQUENCECORE_API URequestKey :public UObject
+class INPUTSEQUENCECORE_API UInputSequenceRequestKey :public UObject
 {
 	GENERATED_BODY()
 };
 
 //------------------------------------------------------
-// FResetRequest
+// FInputSequenceResetRequest
 //------------------------------------------------------
 
 USTRUCT(BlueprintType)
-struct INPUTSEQUENCECORE_API FResetRequest
+struct INPUTSEQUENCECORE_API FInputSequenceResetRequest
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
-	FResetRequest() :StateId(FGuid()), State(nullptr), RequestKey(nullptr), bResetAll(0) {}
+	FInputSequenceResetRequest() :StateId(FGuid()), State(nullptr), RequestKey(nullptr), bResetAll(0) {}
 
 	FGuid StateId;
 
@@ -46,7 +49,7 @@ public:
 
 	/* Requested with Request Key */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
-	TObjectPtr<URequestKey> RequestKey;
+	TObjectPtr<UInputSequenceRequestKey> RequestKey;
 
 	/* If true, request will reset all active states */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
@@ -54,17 +57,17 @@ public:
 };
 
 //------------------------------------------------------
-// FEventRequest
+// FInputSequenceEventRequest
 //------------------------------------------------------
 
 USTRUCT(BlueprintType)
-struct INPUTSEQUENCECORE_API FEventRequest
+struct INPUTSEQUENCECORE_API FInputSequenceEventRequest
 {
 	GENERATED_USTRUCT_BODY()
 
 public:
 
-	FEventRequest() :State(nullptr), RequestKey(nullptr), Event(nullptr) {}
+	FInputSequenceEventRequest() :State(nullptr), RequestKey(nullptr), Event(nullptr) {}
 
 	/* Requested by State */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
@@ -72,7 +75,7 @@ public:
 
 	/* Requested with Request Key */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
-	TObjectPtr<URequestKey> RequestKey;
+	TObjectPtr<UInputSequenceRequestKey> RequestKey;
 
 	/* Requested Input Sequence Event */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
@@ -91,9 +94,9 @@ class INPUTSEQUENCECORE_API UInputSequenceEvent : public UObject
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, BlueprintCallable, Category = "Input Sequence Event")
-	void Execute(UInputSequenceState_Base* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests);
+	void Execute(UInputSequenceState_Base* state, UInputSequenceRequestKey* requestKey, const TArray<FInputSequenceResetRequest>& resetRequests);
 
-	virtual void Execute_Implementation(UInputSequenceState_Base* state, URequestKey* requestKey, const TArray<FResetRequest>& resetRequests) {}
+	virtual void Execute_Implementation(UInputSequenceState_Base* state, UInputSequenceRequestKey* requestKey, const TArray<FInputSequenceResetRequest>& resetRequests) {}
 
 	virtual UWorld* GetWorld() const override;
 };
@@ -103,7 +106,7 @@ public:
 //------------------------------------------------------
 
 USTRUCT()
-struct INPUTSEQUENCECORE_API FInputActionInfo
+struct FInputActionInfo
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -146,9 +149,9 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 
 public:
 
-	virtual void OnEnter(TArray<FEventRequest>& outEventCalls, const float resetTime) {}
-	virtual void OnPass(TArray<FEventRequest>& outEventCalls) {}
-	virtual void OnReset(TArray<FEventRequest>& outEventCalls) {}
+	virtual void OnEnter(TArray<FInputSequenceEventRequest>& outEventCalls, const float resetTime) {}
+	virtual void OnPass(TArray<FInputSequenceEventRequest>& outEventCalls) {}
+	virtual void OnReset(TArray<FInputSequenceEventRequest>& outEventCalls) {}
 };
 
 //------------------------------------------------------
@@ -174,7 +177,7 @@ public:
 
 	/* Request Key for this state */
 	UPROPERTY(EditAnywhere, Category = "Context:")
-	TObjectPtr<URequestKey> RequestKey;
+	TObjectPtr<UInputSequenceRequestKey> RequestKey;
 };
 
 //------------------------------------------------------
@@ -188,9 +191,15 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UInputSequenceSta
 
 public:
 
-	virtual void OnEnter(TArray<FEventRequest>& outEventCalls, const float resetTime) override;
-	virtual void OnPass(TArray<FEventRequest>& outEventCalls) override;
-	virtual void OnReset(TArray<FEventRequest>& outEventCalls) override;
+#if WITH_EDITORONLY_DATA
+
+	void AddInputActionInfo(UInputAction* inputAction) { InputActionInfos.Add(inputAction, FInputActionInfo()); }
+
+#endif
+
+	virtual void OnEnter(TArray<FInputSequenceEventRequest>& outEventCalls, const float resetTime) override;
+	virtual void OnPass(TArray<FInputSequenceEventRequest>& outEventCalls) override;
+	virtual void OnReset(TArray<FInputSequenceEventRequest>& outEventCalls) override;
 
 	uint32 InputActionPassCount;
 
@@ -209,7 +218,7 @@ public:
 
 	/* Request Key for this state */
 	UPROPERTY(EditAnywhere, Category = "Context:")
-	TObjectPtr<URequestKey> RequestKey;
+	TObjectPtr<UInputSequenceRequestKey> RequestKey;
 
 	/* If true, this state will be reset if there will be any unexpected input */
 	UPROPERTY(EditAnywhere, Category = "Input:")
@@ -287,7 +296,7 @@ public:
 	* @param outResetRequests		Collection of Reset Requests, that will be filled
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<UInputAction*, ETriggerEvent>& inputActionEvents, TArray<FEventRequest>& outEventRequests, TArray<FResetRequest>& outResetRequests);
+	void OnInput(const float deltaTime, const bool bGamePaused, const TMap<UInputAction*, ETriggerEvent>& inputActionEvents, TArray<FInputSequenceEventRequest>& outEventRequests, TArray<FInputSequenceResetRequest>& outResetRequests);
 
 	/**
 	* Requests reset for Input Sequence with Request Key
@@ -295,7 +304,7 @@ public:
 	* @param requestKey				Request key
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void RequestReset(URequestKey* requestKey)
+	void RequestReset(UInputSequenceRequestKey* requestKey)
 	{
 		bHasCachedRootStates = 0;
 		RequestReset(FGuid(), requestKey, true);
@@ -313,19 +322,19 @@ public:
 
 protected:
 
-	void MakeTransition(const FGuid& fromNodeId, const FInputSequenceStateCollection& nextStateCollection, TArray<FEventRequest>& outEventCalls);
+	void MakeTransition(const FGuid& fromNodeId, const FInputSequenceStateCollection& nextStateCollection, TArray<FInputSequenceEventRequest>& outEventCalls);
 
-	void RequestReset(const FGuid& stateId, const TObjectPtr<URequestKey> requestKey, const bool resetAsset);
+	void RequestReset(const FGuid& stateId, const TObjectPtr<UInputSequenceRequestKey> requestKey, const bool resetAsset);
 
-	void EnterState(const FGuid& stateId, TArray<FEventRequest>& outEventCalls);
+	void EnterState(const FGuid& stateId, TArray<FInputSequenceEventRequest>& outEventCalls);
 
-	void PassState(const FGuid& stateId, TArray<FEventRequest>& outEventCalls);
+	void PassState(const FGuid& stateId, TArray<FInputSequenceEventRequest>& outEventCalls);
 
-	EConsumeInputResponse OnInput(const TMap<UInputAction*, ETriggerEvent>& inputActionEvents, UInputSequenceState_Input* state);
+	InputSequenceCore::EConsumeInputResponse OnInput(const TMap<UInputAction*, ETriggerEvent>& inputActionEvents, UInputSequenceState_Input* state);
 
-	EConsumeInputResponse OnTick(const float deltaTime, UInputSequenceState_Input* state);
+	InputSequenceCore::EConsumeInputResponse OnTick(const float deltaTime, UInputSequenceState_Input* state);
 
-	void ProcessResetSources(TArray<FEventRequest>& outEventCalls, TArray<FResetRequest>& outResetSources);
+	void ProcessResetSources(TArray<FInputSequenceEventRequest>& outEventCalls, TArray<FInputSequenceResetRequest>& outResetSources);
 
 	void CacheRootStates();
 
@@ -361,7 +370,7 @@ protected:
 
 	TSet<FGuid> ActiveStateIds;
 
-	TArray<FResetRequest> ResetSources;
+	TArray<FInputSequenceResetRequest> ResetSources;
 
 	TWeakObjectPtr<UWorld> WorldPtr;
 };

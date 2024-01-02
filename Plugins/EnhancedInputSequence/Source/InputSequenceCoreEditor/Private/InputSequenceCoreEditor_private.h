@@ -6,7 +6,7 @@
 #include "EdGraphUtilities.h"
 #include "InputSequenceCoreEditor_private.generated.h"
 
-class URequestKey;
+class UInputSequenceRequestKey;
 class UInputAction;
 class UInputSequence;
 class UInputSequenceEvent;
