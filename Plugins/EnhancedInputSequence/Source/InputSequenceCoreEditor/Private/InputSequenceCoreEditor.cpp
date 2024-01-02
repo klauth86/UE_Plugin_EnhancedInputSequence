@@ -104,7 +104,7 @@ void AddPinToDynamicNode(UEdGraphNode* graphNode, FName category, FName pinName,
 		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(graphNode->NodeGuid));
 
 		inputState->Modify();
-		inputState->InputActionInfos.Add(FSoftObjectPath(inputAction), FInputActionInfo());
+		inputState->InputActionInfos.Add(inputAction, FInputActionInfo());
 	}
 
 	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
@@ -1615,7 +1615,7 @@ void UInputSequenceGraphNode_Entry::AllocateDefaultPins()
 
 FText UInputSequenceGraphNode_Entry::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Entry_NodeTitle", "Entry");
+	return LOCTEXT("UInputSequenceGraphNode_Entry_NodeTitle", "Entry node");
 }
 
 FLinearColor UInputSequenceGraphNode_Entry::GetNodeTitleColor() const { return FLinearColor::Green; }
@@ -1677,7 +1677,28 @@ void UInputSequenceGraphNode_Input::AllocateDefaultPins()
 
 FText UInputSequenceGraphNode_Input::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Input_NodeTitle", "Input");
+	const UInputSequence* inputSequence = GetTypedOuter<UInputSequence>();
+
+	if (const UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(NodeGuid)))
+	{
+		FString resetTimeString = "no reset";
+
+		if (inputState->bOverrideResetTime)
+		{
+			if (inputState->ResetTime > 0)
+			{
+				resetTimeString = FString::SanitizeFloat(inputState->ResetTime, 1);
+			}
+		}		
+		else if (inputSequence->GetResetTime() > 0)
+		{
+			resetTimeString = FString::SanitizeFloat(inputSequence->GetResetTime(), 1);
+		}
+
+		return FText::Format(LOCTEXT("UInputSequenceGraphNode_Input_NodeTitle_Ext", "Input node [{0}]{1}"), FText::FromString(resetTimeString), FText::FromString(inputState->bRequirePreciseMatch ? "!" : ""));
+	}
+
+	return LOCTEXT("UInputSequenceGraphNode_Input_NodeTitle", "Input node");
 }
 
 FLinearColor UInputSequenceGraphNode_Input::GetNodeTitleColor() const { return FLinearColor::Blue; }
@@ -1699,7 +1720,7 @@ void UInputSequenceGraphNode_Hub::AllocateDefaultPins()
 
 FText UInputSequenceGraphNode_Hub::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Hub_NodeTitle", "Hub");
+	return LOCTEXT("UInputSequenceGraphNode_Hub_NodeTitle", "Hub node");
 }
 
 FLinearColor UInputSequenceGraphNode_Hub::GetNodeTitleColor() const { return FLinearColor::Green; }
@@ -1720,7 +1741,7 @@ void UInputSequenceGraphNode_Reset::AllocateDefaultPins()
 
 FText UInputSequenceGraphNode_Reset::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Reset_NodeTitle", "Reset");
+	return LOCTEXT("UInputSequenceGraphNode_Reset_NodeTitle", "Reset node");
 }
 
 FLinearColor UInputSequenceGraphNode_Reset::GetNodeTitleColor() const { return FLinearColor::Green; }

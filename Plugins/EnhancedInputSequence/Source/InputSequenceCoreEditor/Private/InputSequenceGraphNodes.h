@@ -1,4 +1,4 @@
-// Copyright 2023 Pentangle Studio under EULA https ://www.unrealengine.com/en-US/eula/unreal
+// Copyright 2023 Pentangle Studio under EULA https://www.unrealengine.com/en-US/eula/unreal
 
 #pragma once
 

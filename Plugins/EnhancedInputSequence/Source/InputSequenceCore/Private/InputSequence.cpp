@@ -10,12 +10,8 @@
 
 UWorld* UInputSequenceEvent::GetWorld() const
 {
-	if (UInputSequence* inputSequence = GetTypedOuter<UInputSequence>())
-	{
-		return inputSequence->GetWorld();
-	}
-
-	return nullptr;
+	UInputSequence* inputSequence = GetTypedOuter<UInputSequence>();
+	return inputSequence ? inputSequence->GetWorld() : nullptr;
 }
 
 //------------------------------------------------------
@@ -70,6 +66,15 @@ UInputSequenceState_Input::UInputSequenceState_Input(const FObjectInitializer& O
 
 void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls, const float resetTime)
 {
+	InputActionPassCount = 0;
+
+	for (TPair<TObjectPtr<UInputAction>, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
+	{
+		inputActionInfoEntry.Value.Reset();
+	}
+
+	ResetTimeLeft = bOverrideResetTime ? ResetTime : resetTime;
+
 	for (const TObjectPtr<UInputSequenceEvent>& enterEvent : EnterEvents)
 	{
 		int32 emplacedIndex = outEventCalls.Emplace();
@@ -77,15 +82,6 @@ void UInputSequenceState_Input::OnEnter(TArray<FEventRequest>& outEventCalls, co
 		outEventCalls[emplacedIndex].RequestKey = RequestKey;
 		outEventCalls[emplacedIndex].Event = enterEvent;
 	}
-
-	InputActionPassCount = 0;
-
-	for (TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfoEntry : InputActionInfos)
-	{
-		inputActionInfoEntry.Value.Reset();
-	}
-
-	ResetTimeLeft = bOverrideResetTime ? ResetTime : resetTime;
 }
 
 void UInputSequenceState_Input::OnPass(TArray<FEventRequest>& outEventCalls)
@@ -221,7 +217,7 @@ void UInputSequence::RequestReset(const FGuid& stateId, const TObjectPtr<UReques
 
 	int32 emplacedIndex = ResetSources.Emplace();
 	ResetSources[emplacedIndex].StateId = stateId;
-	ResetSources[emplacedIndex].State = States[stateId];
+	ResetSources[emplacedIndex].State = stateId.IsValid() ? States[stateId] : nullptr;
 	ResetSources[emplacedIndex].RequestKey = requestKey;
 	ResetSources[emplacedIndex].bResetAll = resetAll;
 }
@@ -267,9 +263,9 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 
 	// Actual actions to check
 
-	for (const TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
+	for (const TPair<TObjectPtr<UInputAction>, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
 	{
-		if (UInputAction* inputAction = Cast<UInputAction>(inputActionInfoEntry.Key.TryLoad()))
+		if (UInputAction* inputAction = inputActionInfoEntry.Key.Get())
 		{
 			inputActions.FindOrAdd(inputAction);
 		}
@@ -300,15 +296,13 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 
 	for (UInputAction* inputAction : inputActions)
 	{
-		FSoftObjectPath inputActionPath(inputAction);
-
-		if (state->InputActionInfos.Contains(inputActionPath))
+		if (state->InputActionInfos.Contains(inputAction))
 		{
 			// Check actions Wait Time
 
-			if (state->InputActionInfos[inputActionPath].WaitTimeLeft > 0)
+			if (state->InputActionInfos[inputAction].WaitTimeLeft > 0)
 			{
-				if (!inputActionEvents.Contains(inputAction) || inputActionEvents[inputAction] != state->InputActionInfos[inputActionPath].TriggerEvent)
+				if (!inputActionEvents.Contains(inputAction) || inputActionEvents[inputAction] != state->InputActionInfos[inputAction].TriggerEvent)
 				{
 					return EConsumeInputResponse::RESET;
 				}
@@ -316,9 +310,9 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 
 			// Check actions Precise Match
 
-			if (state->InputActionInfos[inputActionPath].bRequirePreciseMatch)
+			if (state->InputActionInfos[inputAction].bRequirePreciseMatch)
 			{
-				if (!inputActionEvents.Contains(inputAction) || inputActionEvents[inputAction] != state->InputActionInfos[inputActionPath].TriggerEvent)
+				if (!inputActionEvents.Contains(inputAction) || inputActionEvents[inputAction] != state->InputActionInfos[inputAction].TriggerEvent)
 				{
 					return EConsumeInputResponse::RESET;
 				}
@@ -326,20 +320,21 @@ EConsumeInputResponse UInputSequence::OnInput(const TMap<UInputAction*, ETrigger
 
 			// Check actions Strong Match
 
-			if (state->InputActionInfos[inputActionPath].bRequireStrongMatch)
+			if (state->InputActionInfos[inputAction].bRequireStrongMatch)
 			{
-				if (inputActionEvents.Contains(inputAction) && inputActionEvents[inputAction] != state->InputActionInfos[inputActionPath].TriggerEvent &&
+				if (inputActionEvents.Contains(inputAction) && inputActionEvents[inputAction] != state->InputActionInfos[inputAction].TriggerEvent &&
 					inputActionEvents[inputAction] != ETriggerEvent::None)
 				{
 					return EConsumeInputResponse::RESET;
 				}
 			}
 
-			if (!state->InputActionInfos[inputActionPath].IsPassed())
+			if (!state->InputActionInfos[inputAction].IsPassed())
 			{
-				if (inputActionEvents.Contains(inputAction) && inputActionEvents[inputAction] == state->InputActionInfos[inputActionPath].TriggerEvent)
+				if (inputActionEvents.Contains(inputAction) && inputActionEvents[inputAction] == state->InputActionInfos[inputAction].TriggerEvent)
 				{
-					state->InputActionInfos[inputActionPath].SetIsPassed();
+					state->InputActionInfos[inputAction].SetIsPassed();
+					
 					state->InputActionPassCount++;
 
 					if (state->InputActionInfos.Num() == state->InputActionPassCount)
@@ -358,7 +353,7 @@ EConsumeInputResponse UInputSequence::OnTick(const float deltaTime, UInputSequen
 {
 	// Tick Input Action Infos
 
-	for (TPair<FSoftObjectPath, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
+	for (TPair<TObjectPtr<UInputAction>, FInputActionInfo>& inputActionInfoEntry : state->InputActionInfos)
 	{
 		if (inputActionInfoEntry.Value.WaitTimeLeft > 0)
 		{
@@ -409,9 +404,9 @@ void UInputSequence::ProcessResetSources(TArray<FEventRequest>& outEventCalls, T
 
 	if (resetAll)
 	{
-		TSet<FGuid> activeStateIds = ActiveStateIds;
+		const TSet<FGuid> prevActiveStateIds = ActiveStateIds;
 
-		for (const FGuid& stateId : activeStateIds)
+		for (const FGuid& stateId : prevActiveStateIds)
 		{
 			ActiveStateIds.Remove(stateId);
 			States[stateId]->OnReset(outEventCalls);
@@ -452,11 +447,17 @@ void UInputSequence::CacheRootStates()
 
 		for (const FGuid& stateId : stateLayer.States)
 		{
+			const bool isRootState = States[stateId]->IsA<UInputSequenceState_Input>() && RootStateIds[stateId].StateIds.IsEmpty();
+
+			if (isRootState)
+			{
+				RootStateIds[stateId].StateIds.Add(stateId);
+			}
+
 			for (const FGuid& nextStateId : NextStateIds[stateId].StateIds)
 			{
-				if (States[stateId]->IsA<UInputSequenceState_Input>() && RootStateIds[stateId].StateIds.IsEmpty())
+				if (isRootState)
 				{
-					RootStateIds[stateId].StateIds.Add(stateId);
 					RootStateIds[nextStateId].StateIds.Add(stateId);
 				}
 				else
@@ -478,9 +479,9 @@ void UInputSequence::CacheRootStates()
 
 void APlayerController_IS::PreProcessInput(const float DeltaTime, const bool bGamePaused)
 {
-	Super::PreProcessInput(DeltaTime, bGamePaused);
-
 	OnPreProcessInput(DeltaTime, bGamePaused);
+
+	Super::PreProcessInput(DeltaTime, bGamePaused);
 }
 
 void APlayerController_IS::PostProcessInput(const float DeltaTime, const bool bGamePaused)

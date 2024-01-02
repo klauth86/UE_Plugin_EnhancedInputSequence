@@ -195,7 +195,7 @@ public:
 	uint32 InputActionPassCount;
 
 	UPROPERTY()
-	TMap<FSoftObjectPath, FInputActionInfo> InputActionInfos;
+	TMap<TObjectPtr<UInputAction>, FInputActionInfo> InputActionInfos;
 
 	/* Enter Events for this state */
 	UPROPERTY(EditAnywhere, Category = "Events:", meta=(EditInline))
@@ -269,6 +269,8 @@ public:
 	
 	void RemoveNextStateId(const FGuid& stateId, const FGuid& nextStateId) { NextStateIds.FindOrAdd(stateId).StateIds.Remove(nextStateId); }
 
+	float GetResetTime() const { return ResetTime; }
+
 #endif
 
 	/**
@@ -289,7 +291,11 @@ public:
 	* @param requestKey				Request key
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void RequestReset(URequestKey* requestKey) { RequestReset(FGuid(), requestKey, true); }
+	void RequestReset(URequestKey* requestKey)
+	{
+		bHasCachedRootStates = 0;
+		RequestReset(FGuid(), requestKey, true);
+	}
 
 	/**
 	* Sets World Context for Input Sequence
