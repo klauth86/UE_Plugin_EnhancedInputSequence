@@ -45,11 +45,11 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Entry
+// UEnhancedInputSequenceGraphNode_Entry
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Entry : public UEdGraphNode
+class UEnhancedInputSequenceGraphNode_Entry : public UEdGraphNode
 {
 	GENERATED_BODY()
 
@@ -69,11 +69,11 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Base
+// UEnhancedInputSequenceGraphNode_Base
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Base : public UEdGraphNode
+class UEnhancedInputSequenceGraphNode_Base : public UEdGraphNode
 {
 	GENERATED_BODY()
 
@@ -90,11 +90,11 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Dynamic
+// UEnhancedInputSequenceGraphNode_Dynamic
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Dynamic : public UInputSequenceGraphNode_Base
+class UEnhancedInputSequenceGraphNode_Dynamic : public UEnhancedInputSequenceGraphNode_Base
 {
 	GENERATED_BODY()
 
@@ -106,11 +106,11 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Input
+// UEnhancedInputSequenceGraphNode_Input
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Input : public UInputSequenceGraphNode_Dynamic
+class UEnhancedInputSequenceGraphNode_Input : public UEnhancedInputSequenceGraphNode_Dynamic
 {
 	GENERATED_BODY()
 
@@ -126,11 +126,11 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Hub
+// UEnhancedInputSequenceGraphNode_Hub
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Hub : public UInputSequenceGraphNode_Dynamic
+class UEnhancedInputSequenceGraphNode_Hub : public UEnhancedInputSequenceGraphNode_Dynamic
 {
 	GENERATED_BODY()
 
@@ -146,11 +146,11 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Reset
+// UEnhancedInputSequenceGraphNode_Reset
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphNode_Reset : public UInputSequenceGraphNode_Base
+class UEnhancedInputSequenceGraphNode_Reset : public UEnhancedInputSequenceGraphNode_Base
 {
 	GENERATED_BODY()
 
@@ -166,56 +166,56 @@ public:
 };
 
 //------------------------------------------------------
-// UInputSequenceGraph
+// UEnhancedInputSequenceGraph
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraph : public UEdGraph
+class UEnhancedInputSequenceGraph : public UEdGraph
 {
 	GENERATED_UCLASS_BODY()
 };
 
 //------------------------------------------------------
-// FInputSequenceGraphNodeFactory
+// FEnhancedInputSequenceGraphNodeFactory
 //------------------------------------------------------
 
-struct FInputSequenceGraphNodeFactory : public FGraphPanelNodeFactory
+struct FEnhancedInputSequenceGraphNodeFactory : public FGraphPanelNodeFactory
 {
 	virtual TSharedPtr<SGraphNode> CreateNode(UEdGraphNode* InNode) const override;
 };
 
 //------------------------------------------------------
-// FInputSequenceGraphPinFactory
+// FEnhancedInputSequenceGraphPinFactory
 //------------------------------------------------------
 
-struct FInputSequenceGraphPinFactory : public FGraphPanelPinFactory
+struct FEnhancedInputSequenceGraphPinFactory : public FGraphPanelPinFactory
 {
 public:
 	virtual TSharedPtr<class SGraphPin> CreatePin(class UEdGraphPin* Pin) const override;
 };
 
 //------------------------------------------------------
-// FInputSequenceGraphPinConnectionFactory
+// FEnhancedInputSequenceGraphPinConnectionFactory
 //------------------------------------------------------
 
-struct FInputSequenceGraphPinConnectionFactory : public FGraphPanelPinConnectionFactory
+struct FEnhancedInputSequenceGraphPinConnectionFactory : public FGraphPanelPinConnectionFactory
 {
 public:
 	virtual FConnectionDrawingPolicy* CreateConnectionPolicy(const UEdGraphSchema* Schema, int32 InBackLayerID, int32 InFrontLayerID, float ZoomFactor, const class FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const override;
 };
 
 //------------------------------------------------------
-// FInputSequenceGraphSchemaAction_NewComment
+// FEnhancedInputSequenceGraphSchemaAction_NewComment
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputSequenceGraphSchemaAction_NewComment : public FEdGraphSchemaAction
+struct FEnhancedInputSequenceGraphSchemaAction_NewComment : public FEdGraphSchemaAction
 {
 	GENERATED_BODY();
 
-	FInputSequenceGraphSchemaAction_NewComment() : FEdGraphSchemaAction() {}
+	FEnhancedInputSequenceGraphSchemaAction_NewComment() : FEdGraphSchemaAction() {}
 
-	FInputSequenceGraphSchemaAction_NewComment(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
+	FEnhancedInputSequenceGraphSchemaAction_NewComment(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping)
 	{}
 
@@ -225,19 +225,19 @@ struct FInputSequenceGraphSchemaAction_NewComment : public FEdGraphSchemaAction
 };
 
 //------------------------------------------------------
-// FInputSequenceGraphSchemaAction_NewNode
+// FEnhancedInputSequenceGraphSchemaAction_NewNode
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputSequenceGraphSchemaAction_NewNode : public FEdGraphSchemaAction
+struct FEnhancedInputSequenceGraphSchemaAction_NewNode : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
 	UEdGraphNode* NodeTemplate;
 
-	FInputSequenceGraphSchemaAction_NewNode() : FEdGraphSchemaAction(), NodeTemplate(nullptr) {}
+	FEnhancedInputSequenceGraphSchemaAction_NewNode() : FEdGraphSchemaAction(), NodeTemplate(nullptr) {}
 
-	FInputSequenceGraphSchemaAction_NewNode(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
+	FEnhancedInputSequenceGraphSchemaAction_NewNode(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping)
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping), NodeTemplate(nullptr)
 	{}
 
@@ -247,19 +247,19 @@ struct FInputSequenceGraphSchemaAction_NewNode : public FEdGraphSchemaAction
 };
 
 //------------------------------------------------------
-// FInputSequenceGraphSchemaAction_AddPin
+// FEnhancedInputSequenceGraphSchemaAction_AddPin
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
+struct FEnhancedInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 
 	TObjectPtr<UInputAction> InputAction;
 
-	FInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputAction(nullptr) {}
+	FEnhancedInputSequenceGraphSchemaAction_AddPin() : FEdGraphSchemaAction(), InputAction(nullptr) {}
 
-	FInputSequenceGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping, int32 InSectionID)
+	FEnhancedInputSequenceGraphSchemaAction_AddPin(FText InNodeCategory, FText InMenuDesc, FText InToolTip, const int32 InGrouping, int32 InSectionID)
 		: FEdGraphSchemaAction(MoveTemp(InNodeCategory), MoveTemp(InMenuDesc), MoveTemp(InToolTip), InGrouping, FText::GetEmpty(), InSectionID), InputAction(nullptr)
 	{}
 
@@ -267,11 +267,11 @@ struct FInputSequenceGraphSchemaAction_AddPin : public FEdGraphSchemaAction
 };
 
 //------------------------------------------------------
-// UInputSequenceGraphSchema
+// UEnhancedInputSequenceGraphSchema
 //------------------------------------------------------
 
 UCLASS()
-class UInputSequenceGraphSchema : public UEdGraphSchema
+class UEnhancedInputSequenceGraphSchema : public UEdGraphSchema
 {
 	GENERATED_BODY()
 

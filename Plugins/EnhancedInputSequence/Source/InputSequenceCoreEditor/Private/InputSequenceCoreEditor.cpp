@@ -109,11 +109,11 @@ void AddPinToDynamicNode(UEdGraphNode* graphNode, FName category, FName pinName,
 		inputState->AddInputActionInfo(inputAction);
 	}
 
-	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
+	Cast<UEnhancedInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 }
 
 //------------------------------------------------------
-// SInputSequenceGraphNode_Dynamic
+// SEnhancedInputSequenceGraphNode_Dynamic
 //------------------------------------------------------
 
 class SToolTip_Dummy : public SLeafWidget, public IToolTip
@@ -138,18 +138,18 @@ public:
 };
 
 //------------------------------------------------------
-// SInputSequenceGraphNode_Dynamic
+// SEnhancedInputSequenceGraphNode_Dynamic
 //------------------------------------------------------
 
-class SInputSequenceGraphNode_Dynamic : public SGraphNode
+class SEnhancedInputSequenceGraphNode_Dynamic : public SGraphNode
 {
 public:
-	SLATE_BEGIN_ARGS(SInputSequenceGraphNode_Dynamic) {}
+	SLATE_BEGIN_ARGS(SEnhancedInputSequenceGraphNode_Dynamic) {}
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, UEdGraphNode* InNode);
 
-	virtual ~SInputSequenceGraphNode_Dynamic();
+	virtual ~SEnhancedInputSequenceGraphNode_Dynamic();
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
@@ -170,23 +170,23 @@ protected:
 	TSharedPtr<SNodeTitle> NodeTitle;
 };
 
-void SInputSequenceGraphNode_Dynamic::Construct(const FArguments& InArgs, UEdGraphNode* InNode)
+void SEnhancedInputSequenceGraphNode_Dynamic::Construct(const FArguments& InArgs, UEdGraphNode* InNode)
 {
 	SetCursor(EMouseCursor::CardinalCross);
 
 	GraphNode = InNode;
 
-	Cast<UInputSequenceGraphNode_Dynamic>(GraphNode)->OnUpdateGraphNode.BindLambda([&]() { UpdateGraphNode(); });
+	Cast<UEnhancedInputSequenceGraphNode_Dynamic>(GraphNode)->OnUpdateGraphNode.BindLambda([&]() { UpdateGraphNode(); });
 
 	UpdateGraphNode();
 }
 
-SInputSequenceGraphNode_Dynamic::~SInputSequenceGraphNode_Dynamic()
+SEnhancedInputSequenceGraphNode_Dynamic::~SEnhancedInputSequenceGraphNode_Dynamic()
 {
-	Cast<UInputSequenceGraphNode_Dynamic>(GraphNode)->OnUpdateGraphNode.Unbind();
+	Cast<UEnhancedInputSequenceGraphNode_Dynamic>(GraphNode)->OnUpdateGraphNode.Unbind();
 }
 
-void SInputSequenceGraphNode_Dynamic::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+void SEnhancedInputSequenceGraphNode_Dynamic::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SGraphNode::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 
@@ -195,7 +195,7 @@ void SInputSequenceGraphNode_Dynamic::Tick(const FGeometry& AllottedGeometry, co
 	ActiveColorTime += InDeltaTime;
 }
 
-void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
+void SEnhancedInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 {
 	InputPins.Empty();
 	OutputPins.Empty();
@@ -303,7 +303,7 @@ void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 
 	TSharedRef<SWidget> TitleAreaWidget =
 		SNew(SLevelOfDetailBranchNode)
-		.UseLowDetailSlot(this, &SInputSequenceGraphNode_Dynamic::UseLowDetailNodeTitles)
+		.UseLowDetailSlot(this, &SEnhancedInputSequenceGraphNode_Dynamic::UseLowDetailNodeTitles)
 		.LowDetail()
 		[
 			SNew(SBorder)
@@ -393,7 +393,7 @@ void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 						[
 							SNew(SImage)
 								.Image(&nodeBackgroundBrush)
-								.ColorAndOpacity(this, &SInputSequenceGraphNode_Dynamic::GetNodeColorForState)
+								.ColorAndOpacity(this, &SEnhancedInputSequenceGraphNode_Dynamic::GetNodeColorForState)
 						]
 						+ SOverlay::Slot()
 						[
@@ -401,7 +401,7 @@ void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 						]
 						+ SOverlay::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center)
 						[
-							SNew(STextBlock).Text(this, &SInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState).Visibility(EVisibility::HitTestInvisible)
+							SNew(STextBlock).Text(this, &SEnhancedInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState).Visibility(EVisibility::HitTestInvisible)
 								.Font(resetTimeFontInfo)
 								.ColorAndOpacity(FColorList::Goldenrod)
 								.RenderOpacity(0.7f)
@@ -451,14 +451,14 @@ void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 	CreateAdvancedViewArrow(InnerVerticalBox);
 }
 
-void SInputSequenceGraphNode_Dynamic::CreatePinWidgets()
+void SEnhancedInputSequenceGraphNode_Dynamic::CreatePinWidgets()
 {
 	// Create Pin widgets for each of the pins.
 	for (int32 PinIndex = 0; PinIndex < GraphNode->Pins.Num(); ++PinIndex)
 	{
 		UEdGraphPin* CurPin = GraphNode->Pins[PinIndex];
 
-		if (CurPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Input) continue;
+		if (CurPin->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Input) continue;
 
 		if (!ensureMsgf(CurPin->GetOuter() == GraphNode
 			, TEXT("Graph node ('%s' - %s) has an invalid %s pin: '%s'; (with a bad %s outer: '%s'); skiping creation of a widget for this pin.")
@@ -476,7 +476,7 @@ void SInputSequenceGraphNode_Dynamic::CreatePinWidgets()
 	}
 }
 
-FSlateColor SInputSequenceGraphNode_Dynamic::GetNodeColorForState() const
+FSlateColor SEnhancedInputSequenceGraphNode_Dynamic::GetNodeColorForState() const
 {
 	FColor goldenRod(220, 220, 120, 0);
 
@@ -491,7 +491,7 @@ FSlateColor SInputSequenceGraphNode_Dynamic::GetNodeColorForState() const
 	return goldenRod;
 }
 
-FText SInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState() const
+FText SEnhancedInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState() const
 {
 	if (UInputSequence* inputSequence = GraphNode->GetTypedOuter<UInputSequence>())
 	{
@@ -633,8 +633,8 @@ protected:
 
 			const FText tooltip = FText::Format(LOCTEXT("SInputSequenceParameterMenu_Pin_Tooltip", "Add {0} for {1}"), FText::FromString("Action pin"), FText::FromName(inputActionName));
 
-			TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> schemaAction(
-				new FInputSequenceGraphSchemaAction_AddPin(
+			TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_AddPin> schemaAction(
+				new FEnhancedInputSequenceGraphSchemaAction_AddPin(
 					FText::GetEmpty()
 					, FText::FromName(inputActionName)
 					, tooltip
@@ -649,7 +649,7 @@ protected:
 
 		for (TSharedPtr<FEdGraphSchemaAction> schemaAction : schemaActions)
 		{
-			TSharedPtr<FInputSequenceGraphSchemaAction_AddPin> addPinAction = StaticCastSharedPtr<FInputSequenceGraphSchemaAction_AddPin>(schemaAction);
+			TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_AddPin> addPinAction = StaticCastSharedPtr<FEnhancedInputSequenceGraphSchemaAction_AddPin>(schemaAction);
 			OutAllActions.AddAction(schemaAction);
 		}
 	}
@@ -946,7 +946,7 @@ FReply SGraphPin_Input::OnClicked_RemovePin() const
 	graphPin->Modify();
 	graphNode->RemovePin(graphPin);
 
-	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
+	Cast<UEnhancedInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 
 	return FReply::Handled();
 }
@@ -1185,10 +1185,10 @@ void SGraphPin_Input::OnEndSliderMovement(const float NewValue) const
 }
 
 //------------------------------------------------------
-// SInputSequenceGraphNode_Input
+// SEnhancedInputSequenceGraphNode_Input
 //------------------------------------------------------
 
-class SInputSequenceGraphNode_Input : public SInputSequenceGraphNode_Dynamic
+class SEnhancedInputSequenceGraphNode_Input : public SEnhancedInputSequenceGraphNode_Dynamic
 {
 protected:
 
@@ -1201,7 +1201,7 @@ protected:
 	TSharedPtr<SComboButton> AddButton;
 };
 
-void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
+void SEnhancedInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
 {
 	TSharedPtr<SVerticalBox> innerVerticalBox = SNew(SVerticalBox);
 
@@ -1214,7 +1214,7 @@ void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalB
 	{
 		UEdGraphPin* CurPin = GraphNode->Pins[PinIndex];
 
-		if (CurPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Input)
+		if (CurPin->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Input)
 		{
 			orderedPins.Add(CurPin);
 		}
@@ -1224,7 +1224,7 @@ void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalB
 
 	for (UEdGraphPin* CurPin : orderedPins)
 	{
-		if (CurPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Input)
+		if (CurPin->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Input)
 		{
 			innerVerticalBox->AddSlot().AutoHeight()[SNew(SGraphPin_Input, CurPin)];
 		}
@@ -1239,8 +1239,8 @@ void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalB
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Cursor(EMouseCursor::Hand)
-				.ToolTipText(LOCTEXT("SInputSequenceGraphNode_Input_Add_ToolTipText", "Click to add new pin"))
-				.OnGetMenuContent(this, &SInputSequenceGraphNode_Input::OnGetAddButtonMenuContent)
+				.ToolTipText(LOCTEXT("SEnhancedInputSequenceGraphNode_Input_Add_ToolTipText", "Click to add new pin"))
+				.OnGetMenuContent(this, &SEnhancedInputSequenceGraphNode_Input::OnGetAddButtonMenuContent)
 				.ButtonContent()
 				[
 					SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
@@ -1248,7 +1248,7 @@ void SInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SVerticalB
 		];
 }
 
-TSharedRef<SWidget> SInputSequenceGraphNode_Input::OnGetAddButtonMenuContent()
+TSharedRef<SWidget> SEnhancedInputSequenceGraphNode_Input::OnGetAddButtonMenuContent()
 {
 	TSharedRef<SInputSequenceParameterMenu_Pin> MenuWidget = SNew(SInputSequenceParameterMenu_Pin).Node(GraphNode);
 
@@ -1258,10 +1258,10 @@ TSharedRef<SWidget> SInputSequenceGraphNode_Input::OnGetAddButtonMenuContent()
 }
 
 //------------------------------------------------------
-// SInputSequenceGraphNode_Hub
+// SEnhancedInputSequenceGraphNode_Hub
 //------------------------------------------------------
 
-class SInputSequenceGraphNode_Hub : public SInputSequenceGraphNode_Dynamic
+class SEnhancedInputSequenceGraphNode_Hub : public SEnhancedInputSequenceGraphNode_Dynamic
 {
 protected:
 
@@ -1270,7 +1270,7 @@ protected:
 	FReply OnClickedAddButton();
 };
 
-void SInputSequenceGraphNode_Hub::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
+void SEnhancedInputSequenceGraphNode_Hub::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
 {
 	MainBox->AddSlot().HAlign(HAlign_Right)
 		[
@@ -1280,15 +1280,15 @@ void SInputSequenceGraphNode_Hub::CreateBelowPinControls(TSharedPtr<SVerticalBox
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Cursor(EMouseCursor::Hand)
-				.ToolTipText(LOCTEXT("SInputSequenceGraphNode_Hub_ToolTipText", "Click to add new pin"))
-				.OnClicked_Raw(this, &SInputSequenceGraphNode_Hub::OnClickedAddButton)
+				.ToolTipText(LOCTEXT("SEnhancedInputSequenceGraphNode_Hub_ToolTipText", "Click to add new pin"))
+				.OnClicked_Raw(this, &SEnhancedInputSequenceGraphNode_Hub::OnClickedAddButton)
 				[
 					SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
 				]
 		];
 }
 
-FReply SInputSequenceGraphNode_Hub::OnClickedAddButton()
+FReply SEnhancedInputSequenceGraphNode_Hub::OnClickedAddButton()
 {
 	int32 outputPinsCount = 1;
 	
@@ -1297,7 +1297,7 @@ FReply SInputSequenceGraphNode_Hub::OnClickedAddButton()
 		if (pin->Direction == EGPD_Output) outputPinsCount++;
 	}
 
-	AddPinToDynamicNode(GraphNode, UInputSequenceGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), nullptr);
+	AddPinToDynamicNode(GraphNode, UEnhancedInputSequenceGraphSchema::PC_Exec, FName(FString::FromInt(outputPinsCount)), nullptr);
 
 	return FReply::Handled();
 }
@@ -1490,7 +1490,7 @@ FReply SGraphPin_HubExec::OnClicked_RemovePin() const
 	{
 		for (size_t i = nextGraphPinIndex; i < graphNode->Pins.Num(); i++)
 		{
-			if (graphNode->Pins[i]->Direction == EGPD_Output && graphNode->Pins[i]->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+			if (graphNode->Pins[i]->Direction == EGPD_Output && graphNode->Pins[i]->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Exec)
 			{
 				graphNode->Pins[i]->Modify();
 				graphNode->Pins[i]->PinName = FName(FString::FromInt(i - 1));
@@ -1500,40 +1500,40 @@ FReply SGraphPin_HubExec::OnClicked_RemovePin() const
 
 	graphNode->RemovePin(graphPin);
 
-	Cast<UInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
+	Cast<UEnhancedInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 
 	return FReply::Handled();
 }
 
 //------------------------------------------------------
-// FInputSequenceGraphNodeFactory
+// FEnhancedInputSequenceGraphNodeFactory
 //------------------------------------------------------
 
-TSharedPtr<SGraphNode> FInputSequenceGraphNodeFactory::CreateNode(UEdGraphNode* InNode) const
+TSharedPtr<SGraphNode> FEnhancedInputSequenceGraphNodeFactory::CreateNode(UEdGraphNode* InNode) const
 {
-	if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(InNode))
+	if (UEnhancedInputSequenceGraphNode_Input* inputGraphNode = Cast<UEnhancedInputSequenceGraphNode_Input>(InNode))
 	{
-		return SNew(SInputSequenceGraphNode_Input, inputGraphNode);
+		return SNew(SEnhancedInputSequenceGraphNode_Input, inputGraphNode);
 	}
-	else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(InNode))
+	else if (UEnhancedInputSequenceGraphNode_Hub* hubGraphNode = Cast<UEnhancedInputSequenceGraphNode_Hub>(InNode))
 	{
-		return SNew(SInputSequenceGraphNode_Hub, hubGraphNode);
+		return SNew(SEnhancedInputSequenceGraphNode_Hub, hubGraphNode);
 	}
 
 	return nullptr;
 }
 
 //------------------------------------------------------
-// FInputSequenceGraphPinFactory
+// FEnhancedInputSequenceGraphPinFactory
 //------------------------------------------------------
 
-TSharedPtr<SGraphPin> FInputSequenceGraphPinFactory::CreatePin(UEdGraphPin* InPin) const
+TSharedPtr<SGraphPin> FEnhancedInputSequenceGraphPinFactory::CreatePin(UEdGraphPin* InPin) const
 {
-	if (InPin->GetSchema()->IsA<UInputSequenceGraphSchema>())
+	if (InPin->GetSchema()->IsA<UEnhancedInputSequenceGraphSchema>())
 	{
-		if (InPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+		if (InPin->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Exec)
 		{
-			if (InPin->Direction == EEdGraphPinDirection::EGPD_Output && InPin->GetOwningNode() && InPin->GetOwningNode()->IsA<UInputSequenceGraphNode_Hub>())
+			if (InPin->Direction == EEdGraphPinDirection::EGPD_Output && InPin->GetOwningNode() && InPin->GetOwningNode()->IsA<UEnhancedInputSequenceGraphNode_Hub>())
 			{
 				return SNew(SGraphPin_HubExec, InPin);
 			}
@@ -1552,7 +1552,7 @@ TSharedPtr<SGraphPin> FInputSequenceGraphPinFactory::CreatePin(UEdGraphPin* InPi
 }
 
 //------------------------------------------------------
-// FInputSequenceGraphPinConnectionFactory
+// FEnhancedInputSequenceGraphPinConnectionFactory
 //------------------------------------------------------
 
 class FInputSequenceConnectionDrawingPolicy : public FConnectionDrawingPolicy
@@ -1567,7 +1567,7 @@ public:
 	{
 		FConnectionDrawingPolicy::DetermineWiringStyle(OutputPin, InputPin, Params);
 
-		if (OutputPin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+		if (OutputPin->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Exec)
 		{
 			Params.WireThickness = 4;
 		}
@@ -1612,9 +1612,9 @@ protected:
 	TMap<UEdGraphNode*, int32> NodeWidgetMap;
 };
 
-FConnectionDrawingPolicy* FInputSequenceGraphPinConnectionFactory::CreateConnectionPolicy(const UEdGraphSchema* Schema, int32 InBackLayerID, int32 InFrontLayerID, float ZoomFactor, const class FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const
+FConnectionDrawingPolicy* FEnhancedInputSequenceGraphPinConnectionFactory::CreateConnectionPolicy(const UEdGraphSchema* Schema, int32 InBackLayerID, int32 InFrontLayerID, float ZoomFactor, const class FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, UEdGraph* InGraphObj) const
 {
-	if (Schema->IsA<UInputSequenceGraphSchema>())
+	if (Schema->IsA<UEnhancedInputSequenceGraphSchema>())
 	{
 		return new FInputSequenceConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, ZoomFactor, InClippingRect, InDrawElements, InGraphObj);
 	}
@@ -1623,19 +1623,19 @@ FConnectionDrawingPolicy* FInputSequenceGraphPinConnectionFactory::CreateConnect
 }
 
 //------------------------------------------------------
-// UInputSequenceGraph
+// UEnhancedInputSequenceGraph
 //------------------------------------------------------
 
-UInputSequenceGraph::UInputSequenceGraph(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+UEnhancedInputSequenceGraph::UEnhancedInputSequenceGraph(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
 {
-	Schema = UInputSequenceGraphSchema::StaticClass();
+	Schema = UEnhancedInputSequenceGraphSchema::StaticClass();
 }
 
 //------------------------------------------------------
-// FInputSequenceGraphSchemaAction_NewComment
+// FEnhancedInputSequenceGraphSchemaAction_NewComment
 //------------------------------------------------------
 
-UEdGraphNode* FInputSequenceGraphSchemaAction_NewComment::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode/* = true*/)
+UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewComment::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode/* = true*/)
 {
 	// Add menu item for creating comment boxes
 	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>();
@@ -1650,17 +1650,17 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewComment::PerformAction(class UE
 }
 
 //------------------------------------------------------
-// FInputSequenceGraphSchemaAction_NewNode
+// FEnhancedInputSequenceGraphSchemaAction_NewNode
 //------------------------------------------------------
 
-UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGraph* graph, UEdGraphPin* graphPin, const FVector2D Location, bool bSelectNewNode)
+UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGraph* graph, UEdGraphPin* graphPin, const FVector2D Location, bool bSelectNewNode)
 {
 	UEdGraphNode* ResultNode = NULL;
 
 	// If there is a template, we actually use it
 	if (NodeTemplate != NULL)
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_FInputSequenceGraphSchemaAction_NewNode::PerformAction", "Add Node"));
+		const FScopedTransaction Transaction(LOCTEXT("Transaction_FEnhancedInputSequenceGraphSchemaAction_NewNode::PerformAction", "Add Node"));
 
 		graph->Modify();
 
@@ -1687,15 +1687,15 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 
 		inputSequence->Modify();
 
-		if (UInputSequenceGraphNode_Reset* resetGraphNode = Cast<UInputSequenceGraphNode_Reset>(NodeTemplate))
+		if (UEnhancedInputSequenceGraphNode_Reset* resetGraphNode = Cast<UEnhancedInputSequenceGraphNode_Reset>(NodeTemplate))
 		{
 			inputSequence->AddState(NodeTemplate->NodeGuid, NewObject<UInputSequenceState_Reset>(inputSequence, NAME_None, RF_Transactional));
 		}
-		else if (UInputSequenceGraphNode_Input* inputGraphNode = Cast<UInputSequenceGraphNode_Input>(NodeTemplate))
+		else if (UEnhancedInputSequenceGraphNode_Input* inputGraphNode = Cast<UEnhancedInputSequenceGraphNode_Input>(NodeTemplate))
 		{
 			inputSequence->AddState(NodeTemplate->NodeGuid, NewObject<UInputSequenceState_Input>(inputSequence, NAME_None, RF_Transactional));
 		}
-		else if (UInputSequenceGraphNode_Hub* hubGraphNode = Cast<UInputSequenceGraphNode_Hub>(NodeTemplate))
+		else if (UEnhancedInputSequenceGraphNode_Hub* hubGraphNode = Cast<UEnhancedInputSequenceGraphNode_Hub>(NodeTemplate))
 		{
 			inputSequence->AddState(NodeTemplate->NodeGuid, NewObject<UInputSequenceState_Hub>(inputSequence, NAME_None, RF_Transactional));
 		}
@@ -1710,7 +1710,7 @@ UEdGraphNode* FInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGr
 	return ResultNode;
 }
 
-void FInputSequenceGraphSchemaAction_NewNode::AddReferencedObjects(FReferenceCollector& Collector)
+void FEnhancedInputSequenceGraphSchemaAction_NewNode::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FEdGraphSchemaAction::AddReferencedObjects(Collector);
 
@@ -1718,20 +1718,20 @@ void FInputSequenceGraphSchemaAction_NewNode::AddReferencedObjects(FReferenceCol
 }
 
 //------------------------------------------------------
-// FInputSequenceGraphSchemaAction_AddPin
+// FEnhancedInputSequenceGraphSchemaAction_AddPin
 //------------------------------------------------------
 
-UEdGraphNode* FInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
 {
 	check(InputAction);
 
-	AddPinToDynamicNode(FromPin->GetOwningNode(), UInputSequenceGraphSchema::PC_Input, FName(FGuid::NewGuid().ToString()), InputAction);
+	AddPinToDynamicNode(FromPin->GetOwningNode(), UEnhancedInputSequenceGraphSchema::PC_Input, FName(FGuid::NewGuid().ToString()), InputAction);
 
 	return nullptr;
 }
 
 //------------------------------------------------------
-// UInputSequenceGraphSchema
+// UEnhancedInputSequenceGraphSchema
 //------------------------------------------------------
 
 template<class T>
@@ -1742,32 +1742,32 @@ TSharedPtr<T> AddNewActionAs(FGraphContextMenuBuilder& ContextMenuBuilder, const
 	return Action;
 }
 
-const FName UInputSequenceGraphSchema::PC_Exec("UInputSequenceGraphSchema_PC_Exec");
+const FName UEnhancedInputSequenceGraphSchema::PC_Exec("UEnhancedInputSequenceGraphSchema_PC_Exec");
 
-const FName UInputSequenceGraphSchema::PC_Input("UInputSequenceGraphSchema_PC_Input");
+const FName UEnhancedInputSequenceGraphSchema::PC_Input("UEnhancedInputSequenceGraphSchema_PC_Input");
 
-void UInputSequenceGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
+void UEnhancedInputSequenceGraphSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const
 {
 	{
 		// Add Input node
-		TSharedPtr<FInputSequenceGraphSchemaAction_NewNode> Action = AddNewActionAs<FInputSequenceGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Input", "Add Input node..."), LOCTEXT("AddNode_Input_Tooltip", "A new Input node"));
-		Action->NodeTemplate = NewObject<UInputSequenceGraphNode_Input>(ContextMenuBuilder.OwnerOfTemporaries);
+		TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_NewNode> Action = AddNewActionAs<FEnhancedInputSequenceGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Input", "Add Input node..."), LOCTEXT("AddNode_Input_Tooltip", "A new Input node"));
+		Action->NodeTemplate = NewObject<UEnhancedInputSequenceGraphNode_Input>(ContextMenuBuilder.OwnerOfTemporaries);
 	}
 
 	{
 		// Add Hub node
-		TSharedPtr<FInputSequenceGraphSchemaAction_NewNode> Action = AddNewActionAs<FInputSequenceGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Hub", "Add Hub node..."), LOCTEXT("AddNode_Hub_Tooltip", "A new Hub node"));
-		Action->NodeTemplate = NewObject<UInputSequenceGraphNode_Hub>(ContextMenuBuilder.OwnerOfTemporaries);
+		TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_NewNode> Action = AddNewActionAs<FEnhancedInputSequenceGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Hub", "Add Hub node..."), LOCTEXT("AddNode_Hub_Tooltip", "A new Hub node"));
+		Action->NodeTemplate = NewObject<UEnhancedInputSequenceGraphNode_Hub>(ContextMenuBuilder.OwnerOfTemporaries);
 	}
 
 	{
 		// Add Reset node
-		TSharedPtr<FInputSequenceGraphSchemaAction_NewNode> Action = AddNewActionAs<FInputSequenceGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Reset", "Add Reset node..."), LOCTEXT("AddNode_Reset_Tooltip", "A new Reset node"));
-		Action->NodeTemplate = NewObject<UInputSequenceGraphNode_Reset>(ContextMenuBuilder.OwnerOfTemporaries);
+		TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_NewNode> Action = AddNewActionAs<FEnhancedInputSequenceGraphSchemaAction_NewNode>(ContextMenuBuilder, FText::GetEmpty(), LOCTEXT("AddNode_Reset", "Add Reset node..."), LOCTEXT("AddNode_Reset_Tooltip", "A new Reset node"));
+		Action->NodeTemplate = NewObject<UEnhancedInputSequenceGraphNode_Reset>(ContextMenuBuilder.OwnerOfTemporaries);
 	}
 }
 
-const FPinConnectionResponse UInputSequenceGraphSchema::CanCreateConnection(const UEdGraphPin* pinA, const UEdGraphPin* pinB) const
+const FPinConnectionResponse UEnhancedInputSequenceGraphSchema::CanCreateConnection(const UEdGraphPin* pinA, const UEdGraphPin* pinB) const
 {
 	if (pinA == nullptr || pinB == nullptr) return FPinConnectionResponse(CONNECT_RESPONSE_DISALLOW, LOCTEXT("Pin(s)Null", "One or both of pins was null"));
 
@@ -1778,7 +1778,7 @@ const FPinConnectionResponse UInputSequenceGraphSchema::CanCreateConnection(cons
 	return FPinConnectionResponse(CONNECT_RESPONSE_BREAK_OTHERS_AB, TEXT(""));
 }
 
-bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
+bool UEnhancedInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
 {
 	const FPinConnectionResponse Response = CanCreateConnection(PinA, PinB);
 
@@ -1865,14 +1865,14 @@ bool UInputSequenceGraphSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphP
 	return bModified;
 }
 
-void UInputSequenceGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotifcation) const
+void UEnhancedInputSequenceGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotifcation) const
 {
 	UEdGraphNode* graphNode = TargetPin.GetOwningNode();
 	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
 
 	if (TargetPin.HasAnyConnections())
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_UInputSequenceGraphSchema::BreakPinLinks", "Break Pin Links"));
+		const FScopedTransaction Transaction(LOCTEXT("Transaction_UEnhancedInputSequenceGraphSchema::BreakPinLinks", "Break Pin Links"));
 
 		inputSequence->Modify();
 
@@ -1885,7 +1885,7 @@ void UInputSequenceGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSend
 	}
 }
 
-void UInputSequenceGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraphPin* TargetPin) const
+void UEnhancedInputSequenceGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraphPin* TargetPin) const
 {
 	UEdGraphNode* sourceGraphNode = SourcePin->GetOwningNode();
 	UEdGraphNode* targetGraphNode = TargetPin->GetOwningNode();
@@ -1898,10 +1898,10 @@ void UInputSequenceGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGr
 	Super::BreakSinglePinLink(SourcePin, TargetPin);
 }
 
-void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
+void UEnhancedInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) const
 {
-	FGraphNodeCreator<UInputSequenceGraphNode_Entry> entryGraphNodeCreator(Graph);
-	UInputSequenceGraphNode_Entry* entryGraphNode = entryGraphNodeCreator.CreateNode();
+	FGraphNodeCreator<UEnhancedInputSequenceGraphNode_Entry> entryGraphNodeCreator(Graph);
+	UEnhancedInputSequenceGraphNode_Entry* entryGraphNode = entryGraphNodeCreator.CreateNode();
 	entryGraphNode->NodePosX = -300;
 	entryGraphNodeCreator.Finalize();
 	SetNodeMetaData(entryGraphNode, FNodeMetadata::DefaultGraphNode);
@@ -1913,44 +1913,44 @@ void UInputSequenceGraphSchema::CreateDefaultNodesForGraph(UEdGraph& Graph) cons
 	inputSequence->AddEntryStateId(entryGraphNode->NodeGuid);
 }
 
-TSharedPtr<FEdGraphSchemaAction> UInputSequenceGraphSchema::GetCreateCommentAction() const
+TSharedPtr<FEdGraphSchemaAction> UEnhancedInputSequenceGraphSchema::GetCreateCommentAction() const
 {
-	return TSharedPtr<FEdGraphSchemaAction>(static_cast<FEdGraphSchemaAction*>(new FInputSequenceGraphSchemaAction_NewComment));
+	return TSharedPtr<FEdGraphSchemaAction>(static_cast<FEdGraphSchemaAction*>(new FEnhancedInputSequenceGraphSchemaAction_NewComment));
 }
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Entry
+// UEnhancedInputSequenceGraphNode_Entry
 //------------------------------------------------------
 
-void UInputSequenceGraphNode_Entry::AllocateDefaultPins()
+void UEnhancedInputSequenceGraphNode_Entry::AllocateDefaultPins()
 {
-	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, NAME_None);
+	CreatePin(EGPD_Output, UEnhancedInputSequenceGraphSchema::PC_Exec, NAME_None);
 }
 
-FText UInputSequenceGraphNode_Entry::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UEnhancedInputSequenceGraphNode_Entry::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Entry_NodeTitle", "Entry node");
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Entry_NodeTitle", "Entry node");
 }
 
-FLinearColor UInputSequenceGraphNode_Entry::GetNodeTitleColor() const { return FLinearColor::Green; }
+FLinearColor UEnhancedInputSequenceGraphNode_Entry::GetNodeTitleColor() const { return FLinearColor::Green; }
 
-FText UInputSequenceGraphNode_Entry::GetTooltipText() const
+FText UEnhancedInputSequenceGraphNode_Entry::GetTooltipText() const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Entry_TooltipText", "This is Entry node of Input sequence...");
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Entry_TooltipText", "This is Entry node of Input sequence...");
 }
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Base
+// UEnhancedInputSequenceGraphNode_Base
 //------------------------------------------------------
 
-void UInputSequenceGraphNode_Base::PrepareForCopying()
+void UEnhancedInputSequenceGraphNode_Base::PrepareForCopying()
 {
 	Super::PrepareForCopying();
 
 	PrevOwningAsset = GetTypedOuter<UInputSequence>();
 }
 
-void UInputSequenceGraphNode_Base::AutowireNewNode(UEdGraphPin* FromPin)
+void UEnhancedInputSequenceGraphNode_Base::AutowireNewNode(UEdGraphPin* FromPin)
 {
 	Super::AutowireNewNode(FromPin);
 
@@ -1966,11 +1966,11 @@ void UInputSequenceGraphNode_Base::AutowireNewNode(UEdGraphPin* FromPin)
 	}
 }
 
-UEdGraphPin* UInputSequenceGraphNode_Base::GetExecPin(EEdGraphPinDirection direction) const
+UEdGraphPin* UEnhancedInputSequenceGraphNode_Base::GetExecPin(EEdGraphPinDirection direction) const
 {
 	for (UEdGraphPin* pin : Pins)
 	{
-		if (pin->Direction == direction && pin->PinType.PinCategory == UInputSequenceGraphSchema::PC_Exec)
+		if (pin->Direction == direction && pin->PinType.PinCategory == UEnhancedInputSequenceGraphSchema::PC_Exec)
 		{
 			return pin;
 		}
@@ -1980,16 +1980,16 @@ UEdGraphPin* UInputSequenceGraphNode_Base::GetExecPin(EEdGraphPinDirection direc
 }
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Input
+// UEnhancedInputSequenceGraphNode_Input
 //------------------------------------------------------
 
-void UInputSequenceGraphNode_Input::AllocateDefaultPins()
+void UEnhancedInputSequenceGraphNode_Input::AllocateDefaultPins()
 {
-	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
-	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, NAME_None);
+	CreatePin(EGPD_Input, UEnhancedInputSequenceGraphSchema::PC_Exec, NAME_None);
+	CreatePin(EGPD_Output, UEnhancedInputSequenceGraphSchema::PC_Exec, NAME_None);
 }
 
-FText UInputSequenceGraphNode_Input::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UEnhancedInputSequenceGraphNode_Input::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	const UInputSequence* inputSequence = GetTypedOuter<UInputSequence>();
 
@@ -2009,60 +2009,60 @@ FText UInputSequenceGraphNode_Input::GetNodeTitle(ENodeTitleType::Type TitleType
 			resetTimeString = FString::SanitizeFloat(inputSequence->GetResetTime(), 1);
 		}
 
-		return FText::Format(LOCTEXT("UInputSequenceGraphNode_Input_NodeTitle_Ext", "Input node [{0}]{1}"), FText::FromString(resetTimeString), FText::FromString(inputState->bRequirePreciseMatch ? "!" : ""));
+		return FText::Format(LOCTEXT("UEnhancedInputSequenceGraphNode_Input_NodeTitle_Ext", "Input node [{0}]{1}"), FText::FromString(resetTimeString), FText::FromString(inputState->bRequirePreciseMatch ? "!" : ""));
 	}
 
-	return LOCTEXT("UInputSequenceGraphNode_Input_NodeTitle", "Input node");
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Input_NodeTitle", "Input node");
 }
 
-FLinearColor UInputSequenceGraphNode_Input::GetNodeTitleColor() const { return FLinearColor::Blue; }
+FLinearColor UEnhancedInputSequenceGraphNode_Input::GetNodeTitleColor() const { return FLinearColor::Blue; }
 
-FText UInputSequenceGraphNode_Input::GetTooltipText() const
+FText UEnhancedInputSequenceGraphNode_Input::GetTooltipText() const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Input_TooltipText", "This is Input node of Input sequence...");
-}
-
-//------------------------------------------------------
-// UInputSequenceGraphNode_Hub
-//------------------------------------------------------
-
-void UInputSequenceGraphNode_Hub::AllocateDefaultPins()
-{
-	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
-	CreatePin(EGPD_Output, UInputSequenceGraphSchema::PC_Exec, "1");
-}
-
-FText UInputSequenceGraphNode_Hub::GetNodeTitle(ENodeTitleType::Type TitleType) const
-{
-	return LOCTEXT("UInputSequenceGraphNode_Hub_NodeTitle", "Hub node");
-}
-
-FLinearColor UInputSequenceGraphNode_Hub::GetNodeTitleColor() const { return FLinearColor::Green; }
-
-FText UInputSequenceGraphNode_Hub::GetTooltipText() const
-{
-	return LOCTEXT("UInputSequenceGraphNode_Hub_TooltipText", "This is Hub node of Input sequence...");
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Input_TooltipText", "This is Input node of Input sequence...");
 }
 
 //------------------------------------------------------
-// UInputSequenceGraphNode_Reset
+// UEnhancedInputSequenceGraphNode_Hub
 //------------------------------------------------------
 
-void UInputSequenceGraphNode_Reset::AllocateDefaultPins()
+void UEnhancedInputSequenceGraphNode_Hub::AllocateDefaultPins()
 {
-	CreatePin(EGPD_Input, UInputSequenceGraphSchema::PC_Exec, NAME_None);
+	CreatePin(EGPD_Input, UEnhancedInputSequenceGraphSchema::PC_Exec, NAME_None);
+	CreatePin(EGPD_Output, UEnhancedInputSequenceGraphSchema::PC_Exec, "1");
 }
 
-FText UInputSequenceGraphNode_Reset::GetNodeTitle(ENodeTitleType::Type TitleType) const
+FText UEnhancedInputSequenceGraphNode_Hub::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Reset_NodeTitle", "Reset node");
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Hub_NodeTitle", "Hub node");
 }
 
-FLinearColor UInputSequenceGraphNode_Reset::GetNodeTitleColor() const { return FLinearColor::Green; }
+FLinearColor UEnhancedInputSequenceGraphNode_Hub::GetNodeTitleColor() const { return FLinearColor::Green; }
 
-FText UInputSequenceGraphNode_Reset::GetTooltipText() const
+FText UEnhancedInputSequenceGraphNode_Hub::GetTooltipText() const
 {
-	return LOCTEXT("UInputSequenceGraphNode_Reset_TooltipText", "This is Reset node of Input sequence...");
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Hub_TooltipText", "This is Hub node of Input sequence...");
+}
+
+//------------------------------------------------------
+// UEnhancedInputSequenceGraphNode_Reset
+//------------------------------------------------------
+
+void UEnhancedInputSequenceGraphNode_Reset::AllocateDefaultPins()
+{
+	CreatePin(EGPD_Input, UEnhancedInputSequenceGraphSchema::PC_Exec, NAME_None);
+}
+
+FText UEnhancedInputSequenceGraphNode_Reset::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Reset_NodeTitle", "Reset node");
+}
+
+FLinearColor UEnhancedInputSequenceGraphNode_Reset::GetNodeTitleColor() const { return FLinearColor::Green; }
+
+FText UEnhancedInputSequenceGraphNode_Reset::GetTooltipText() const
+{
+	return LOCTEXT("UEnhancedInputSequenceGraphNode_Reset_TooltipText", "This is Reset node of Input sequence...");
 }
 
 //------------------------------------------------------
@@ -2250,7 +2250,7 @@ TSharedRef<SDockTab> FInputSequenceEditor::SpawnTab_GraphTab(const FSpawnTabArgs
 
 	if (InputSequence->EdGraph == NULL)
 	{
-		InputSequence->EdGraph = NewObject<UInputSequenceGraph>(InputSequence, NAME_None, RF_Transactional);
+		InputSequence->EdGraph = NewObject<UEnhancedInputSequenceGraph>(InputSequence, NAME_None, RF_Transactional);
 		InputSequence->EdGraph->GetSchema()->CreateDefaultNodesForGraph(*InputSequence->EdGraph);
 	}
 
@@ -2321,7 +2321,7 @@ void FInputSequenceEditor::OnSelectionChanged(const TSet<UObject*>& selectedNode
 {
 	if (selectedNodes.Num() == 1)
 	{
-		if (UInputSequenceGraphNode_Base* graphNode = Cast<UInputSequenceGraphNode_Base>(*selectedNodes.begin()))
+		if (UEnhancedInputSequenceGraphNode_Base* graphNode = Cast<UEnhancedInputSequenceGraphNode_Base>(*selectedNodes.begin()))
 		{
 			return DetailsView->SetObject(InputSequence->GetState(graphNode->NodeGuid));
 		}
@@ -2539,7 +2539,7 @@ void FInputSequenceEditor::PasteNodes()
 					AvgNodePosition.X += graphNode->NodePosX;
 					AvgNodePosition.Y += graphNode->NodePosY;
 
-					if (UInputSequenceGraphNode_Base* baseNode = Cast<UInputSequenceGraphNode_Base>(graphNode))
+					if (UEnhancedInputSequenceGraphNode_Base* baseNode = Cast<UEnhancedInputSequenceGraphNode_Base>(graphNode))
 					{
 						prevOwningAsset = baseNode->PrevOwningAsset;
 						prevToNewNodeGuidMapping.FindOrAdd(baseNode->NodeGuid);
@@ -2569,7 +2569,7 @@ void FInputSequenceEditor::PasteNodes()
 					if (prevToNewNodeGuidMapping.Contains(prevNodeGuid))
 					{
 						prevToNewNodeGuidMapping[prevNodeGuid] = graphNode->NodeGuid;
-						Cast<UInputSequenceGraphNode_Base>(graphNode)->PrevOwningAsset = nullptr;
+						Cast<UEnhancedInputSequenceGraphNode_Base>(graphNode)->PrevOwningAsset = nullptr;
 					}
 				}
 
@@ -2623,7 +2623,7 @@ void FInputSequenceEditor::OnCreateComment()
 		if (graphEditor.IsValid())
 		{
 			TSharedPtr<FEdGraphSchemaAction> Action = graphEditor->GetCurrentGraph()->GetSchema()->GetCreateCommentAction();
-			TSharedPtr<FInputSequenceGraphSchemaAction_NewComment> newCommentAction = StaticCastSharedPtr<FInputSequenceGraphSchemaAction_NewComment>(Action);
+			TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_NewComment> newCommentAction = StaticCastSharedPtr<FEnhancedInputSequenceGraphSchemaAction_NewComment>(Action);
 
 			if (newCommentAction.IsValid())
 			{
@@ -2750,26 +2750,26 @@ void FInputSequenceCoreEditor::StartupModule()
 		if (registeredAssetTypeAction.IsValid()) AssetTools.RegisterAssetTypeActions(registeredAssetTypeAction.ToSharedRef());
 	}
 
-	InputSequenceGraphNodeFactory = MakeShareable(new FInputSequenceGraphNodeFactory());
-	FEdGraphUtilities::RegisterVisualNodeFactory(InputSequenceGraphNodeFactory);
+	EnhancedInputSequenceGraphNodeFactory = MakeShareable(new FEnhancedInputSequenceGraphNodeFactory());
+	FEdGraphUtilities::RegisterVisualNodeFactory(EnhancedInputSequenceGraphNodeFactory);
 
-	InputSequenceGraphPinFactory = MakeShareable(new FInputSequenceGraphPinFactory());
-	FEdGraphUtilities::RegisterVisualPinFactory(InputSequenceGraphPinFactory);
+	EnhancedInputSequenceGraphPinFactory = MakeShareable(new FEnhancedInputSequenceGraphPinFactory());
+	FEdGraphUtilities::RegisterVisualPinFactory(EnhancedInputSequenceGraphPinFactory);
 
-	InputSequenceGraphPinConnectionFactory = MakeShareable(new FInputSequenceGraphPinConnectionFactory());
-	FEdGraphUtilities::RegisterVisualPinConnectionFactory(InputSequenceGraphPinConnectionFactory);
+	EnhancedInputSequenceGraphPinConnectionFactory = MakeShareable(new FEnhancedInputSequenceGraphPinConnectionFactory());
+	FEdGraphUtilities::RegisterVisualPinConnectionFactory(EnhancedInputSequenceGraphPinConnectionFactory);
 }
 
 void FInputSequenceCoreEditor::ShutdownModule()
 {
-	FEdGraphUtilities::UnregisterVisualPinConnectionFactory(InputSequenceGraphPinConnectionFactory);
-	InputSequenceGraphPinConnectionFactory.Reset();
+	FEdGraphUtilities::UnregisterVisualPinConnectionFactory(EnhancedInputSequenceGraphPinConnectionFactory);
+	EnhancedInputSequenceGraphPinConnectionFactory.Reset();
 
-	FEdGraphUtilities::UnregisterVisualPinFactory(InputSequenceGraphPinFactory);
-	InputSequenceGraphPinFactory.Reset();
+	FEdGraphUtilities::UnregisterVisualPinFactory(EnhancedInputSequenceGraphPinFactory);
+	EnhancedInputSequenceGraphPinFactory.Reset();
 
-	FEdGraphUtilities::UnregisterVisualNodeFactory(InputSequenceGraphNodeFactory);
-	InputSequenceGraphNodeFactory.Reset();
+	FEdGraphUtilities::UnregisterVisualNodeFactory(EnhancedInputSequenceGraphNodeFactory);
+	EnhancedInputSequenceGraphNodeFactory.Reset();
 
 	if (FModuleManager::Get().IsModuleLoaded(AssetToolsModuleName))
 	{

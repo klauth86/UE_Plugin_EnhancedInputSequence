@@ -79,15 +79,15 @@ public:
 
 	/* Requested Input Sequence Event */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
-	TObjectPtr<UInputSequenceEvent> Event;
+	TObjectPtr<UInputSequenceEvent_Base> Event;
 };
 
 //------------------------------------------------------
-// UInputSequenceEvent
+// UInputSequenceEvent_Base
 //------------------------------------------------------
 
 UCLASS(Abstract, EditInlineNew, BlueprintType, Blueprintable)
-class INPUTSEQUENCECORE_API UInputSequenceEvent : public UObject
+class INPUTSEQUENCECORE_API UInputSequenceEvent_Base : public UObject
 {
 	GENERATED_BODY()
 
@@ -208,13 +208,13 @@ public:
 
 	/* Enter Events for this state */
 	UPROPERTY(EditAnywhere, Category = "Events:", meta=(EditInline))
-	TArray<TObjectPtr<UInputSequenceEvent>> EnterEvents;
+	TArray<TObjectPtr<UInputSequenceEvent_Base>> EnterEvents;
 	/* Pass Events for this state */
 	UPROPERTY(EditAnywhere, Category = "Events:", meta = (EditInline))
-	TArray<TObjectPtr<UInputSequenceEvent>> PassEvents;
+	TArray<TObjectPtr<UInputSequenceEvent_Base>> PassEvents;
 	/* Reset Events for this state */
 	UPROPERTY(EditAnywhere, Category = "Events:", meta = (EditInline))
-	TArray<TObjectPtr<UInputSequenceEvent>> ResetEvents;
+	TArray<TObjectPtr<UInputSequenceEvent_Base>> ResetEvents;
 
 	/* Request Key for this state */
 	UPROPERTY(EditAnywhere, Category = "Context:")

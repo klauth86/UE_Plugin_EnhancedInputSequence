@@ -5,9 +5,9 @@
 #include "Modules/ModuleManager.h"
 
 class FAssetTypeActions_Base;
-struct FInputSequenceGraphNodeFactory;
-struct FInputSequenceGraphPinFactory;
-struct FInputSequenceGraphPinConnectionFactory;
+struct FEnhancedInputSequenceGraphNodeFactory;
+struct FEnhancedInputSequenceGraphPinFactory;
+struct FEnhancedInputSequenceGraphPinConnectionFactory;
 
 class FInputSequenceCoreEditor : public IModuleInterface
 {
@@ -16,7 +16,7 @@ public:
 	virtual void ShutdownModule() override;
 protected:
 	TArray<TSharedPtr<FAssetTypeActions_Base>> RegisteredAssetTypeActions;
-	TSharedPtr<FInputSequenceGraphNodeFactory> InputSequenceGraphNodeFactory;
-	TSharedPtr<FInputSequenceGraphPinFactory> InputSequenceGraphPinFactory;
-	TSharedPtr<FInputSequenceGraphPinConnectionFactory> InputSequenceGraphPinConnectionFactory;
+	TSharedPtr<FEnhancedInputSequenceGraphNodeFactory> EnhancedInputSequenceGraphNodeFactory;
+	TSharedPtr<FEnhancedInputSequenceGraphPinFactory> EnhancedInputSequenceGraphPinFactory;
+	TSharedPtr<FEnhancedInputSequenceGraphPinConnectionFactory> EnhancedInputSequenceGraphPinConnectionFactory;
 };
