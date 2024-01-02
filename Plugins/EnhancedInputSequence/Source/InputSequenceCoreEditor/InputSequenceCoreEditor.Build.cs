@@ -46,6 +46,7 @@ public class InputSequenceCoreEditor : ModuleRules
 				"EnhancedInput",
 				"AssetRegistry",
 				"InputCore",
+				"Documentation",
 				
 				"InputSequenceCore",
 				// ... add private dependencies that you statically link with here ...	

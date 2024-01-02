@@ -273,6 +273,8 @@ public:
 
 	float GetResetTime() const { return ResetTime; }
 
+	bool IsStateActive(const FGuid& stateId) const { return ActiveStateIds.Contains(stateId); }
+
 #endif
 
 	/**
