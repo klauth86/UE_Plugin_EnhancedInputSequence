@@ -77,6 +77,7 @@ const FSlateFontInfo pinFontInfo(FCoreStyle::GetDefaultFont(), 6, "Regular");
 const FSlateFontInfo pinFontInfo_Selected(FCoreStyle::GetDefaultFont(), 6, "Bold");
 const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 10, "Regular");
 const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 10, "Bold");
+const FSlateFontInfo resetTimeFontInfo(FCoreStyle::GetDefaultFont(), 24, "Regular");
 const float padding = 2;
 
 const FName NAME_NoBorder("NoBorder");
@@ -162,6 +163,8 @@ protected:
 	virtual void CreatePinWidgets() override;
 
 	FSlateColor GetNodeColorForState() const;
+
+	FText GetResetTimeLeftForState() const;
 
 	float ActiveColorPeriod = 1;
 
@@ -399,6 +402,13 @@ void SInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 						[
 							InnerVerticalBox.ToSharedRef()
 						]
+						+ SOverlay::Slot().VAlign(VAlign_Center).HAlign(HAlign_Center)
+						[
+							SNew(STextBlock).Text(this, &SInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState).Visibility(EVisibility::HitTestInvisible)
+								.Font(resetTimeFontInfo)
+								.ColorAndOpacity(FColorList::Goldenrod)
+								.RenderOpacity(0.5f)
+						]
 				]
 		];
 
@@ -482,6 +492,24 @@ FSlateColor SInputSequenceGraphNode_Dynamic::GetNodeColorForState() const
 	}
 
 	return goldenRod;
+}
+
+FText SInputSequenceGraphNode_Dynamic::GetResetTimeLeftForState() const
+{
+	if (UInputSequence* inputSequence = GraphNode->GetTypedOuter<UInputSequence>())
+	{
+		if (inputSequence->IsStateActive(GraphNode->NodeGuid))
+		{
+			if (UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(GraphNode->NodeGuid)))
+			{
+				FNumberFormattingOptions numberFormattingOptions;
+				numberFormattingOptions.MaximumFractionalDigits = 1;
+				return FText::AsNumber(inputState->ResetTimeLeft, &numberFormattingOptions);
+			}
+		}
+	}
+
+	return FText::GetEmpty();
 }
 
 //------------------------------------------------------
