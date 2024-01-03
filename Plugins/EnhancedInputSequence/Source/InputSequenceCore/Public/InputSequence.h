@@ -316,7 +316,7 @@ public:
 	* @param worldContextObject		World Context to set
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void SetWorldContext(UObject* worldContextObject) { WorldPtr = worldContextObject ? worldContextObject->GetWorld() : nullptr; }
+	void SetWorldContext(UObject* worldContextObject);
 
 	virtual UWorld* GetWorld() const override { return WorldPtr.Get(); }
 

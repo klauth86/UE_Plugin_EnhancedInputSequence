@@ -4,6 +4,7 @@
 #include "InputSequence.h"
 #include "PlayerController_EIS.h"
 #include "EnhancedPlayerInput_EIS.h"
+#include "Engine/World.h"
 
 #define LOCTEXT_NAMESPACE "FInputSequenceCore"
 
@@ -210,6 +211,11 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 	}
 
 	ProcessResetSources(outEventCalls, outResetSources);
+}
+
+void UInputSequence::SetWorldContext(UObject* worldContextObject)
+{
+	WorldPtr = worldContextObject ? worldContextObject->GetWorld() : nullptr;
 }
 
 void UInputSequence::MakeTransition(const FGuid& stateId, const FInputSequenceStateCollection& nextStateCollection, TArray<FInputSequenceEventRequest>& outEventCalls)
