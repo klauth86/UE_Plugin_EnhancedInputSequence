@@ -2714,24 +2714,24 @@ FText UFactory_InputSequence::GetDisplayName() const { return LOCTEXT("UFactory_
 uint32 UFactory_InputSequence::GetMenuCategories() const { return EAssetTypeCategories::Misc; }
 
 //------------------------------------------------------
-// UFactory_RequestKey
+// UFactory_InputSequenceRequestKey
 //------------------------------------------------------
 
-UFactory_RequestKey::UFactory_RequestKey(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
+UFactory_InputSequenceRequestKey::UFactory_InputSequenceRequestKey(const FObjectInitializer& ObjectInitializer) :Super(ObjectInitializer)
 {
 	bCreateNew = true;
 	bEditAfterNew = true;
 	SupportedClass = UInputSequenceRequestKey::StaticClass();
 }
 
-UObject* UFactory_RequestKey::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
+UObject* UFactory_InputSequenceRequestKey::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
 {
 	return NewObject<UInputSequenceRequestKey>(InParent, InClass, InName, Flags);
 }
 
-FText UFactory_RequestKey::GetDisplayName() const { return LOCTEXT("UFactory_RequestKey_DisplayName", "Request Key (for Input Sequence)"); }
+FText UFactory_InputSequenceRequestKey::GetDisplayName() const { return LOCTEXT("UFactory_InputSequenceRequestKey_DisplayName", "Request Key (for Input Sequence)"); }
 
-uint32 UFactory_RequestKey::GetMenuCategories() const { return EAssetTypeCategories::Misc; }
+uint32 UFactory_InputSequenceRequestKey::GetMenuCategories() const { return EAssetTypeCategories::Misc; }
 
 //------------------------------------------------------
 // FInputSequenceCoreEditor

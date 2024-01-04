@@ -29,11 +29,11 @@ public:
 };
 
 //------------------------------------------------------
-// UFactory_RequestKey
+// UFactory_InputSequenceRequestKey
 //------------------------------------------------------
 
 UCLASS()
-class UFactory_RequestKey : public UFactory
+class UFactory_InputSequenceRequestKey : public UFactory
 {
 	GENERATED_UCLASS_BODY()
 
