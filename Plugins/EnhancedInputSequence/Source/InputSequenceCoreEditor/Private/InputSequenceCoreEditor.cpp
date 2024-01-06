@@ -70,10 +70,10 @@ const FCheckBoxStyle checkBoxStyle = FCheckBoxStyle()
 
 FSlateRoundedBoxBrush nodeBackgroundBrush = FSlateRoundedBoxBrush(FStyleColors::White, 10);
 
+const FSlateFontInfo labelFontInfo(FCoreStyle::GetDefaultFont(), 5, "Regular");
 const FSlateFontInfo pinFontInfo(FCoreStyle::GetDefaultFont(), 6, "Regular");
 const FSlateFontInfo pinFontInfo_Selected(FCoreStyle::GetDefaultFont(), 6, "Bold");
-const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 10, "Regular");
-const FSlateFontInfo inputEventFontInfo_Selected(FCoreStyle::GetDefaultFont(), 10, "Bold");
+const FSlateFontInfo inputEventFontInfo(FCoreStyle::GetDefaultFont(), 10, "Bold");
 const FSlateFontInfo resetTimeFontInfo(FCoreStyle::GetDefaultFont(), 24, "Regular");
 const float padding = 2;
 
@@ -631,7 +631,7 @@ protected:
 		{
 			const FName inputActionName = inputAction->GetFName();
 
-			const FText tooltip = FText::Format(LOCTEXT("SInputSequenceParameterMenu_Pin_Tooltip", "Add {0} for {1}"), FText::FromString("Action pin"), FText::FromName(inputActionName));
+			const FText tooltip = FText::Format(LOCTEXT("SInputSequenceParameterMenu_Pin_Tooltip", "Add pin for {0}"), FText::FromName(inputActionName));
 
 			TSharedPtr<FEnhancedInputSequenceGraphSchemaAction_AddPin> schemaAction(
 				new FEnhancedInputSequenceGraphSchemaAction_AddPin(
@@ -704,14 +704,6 @@ protected:
 	FSlateColor GetTriggerEventForegroundColor_Completed() const { return GetTriggerEventForegroundColor(ButtonCompletedPtr, ETriggerEvent::Completed); }
 
 	FSlateColor GetTriggerEventForegroundColor(const TSharedPtr<SButton>& buttonPtr, const ETriggerEvent triggerEvent) const;
-
-	FSlateFontInfo GetTriggerEventFont_Started() const { return GetTriggerEventFont(ETriggerEvent::Started); }
-
-	FSlateFontInfo GetTriggerEventFont_Triggered() const { return GetTriggerEventFont(ETriggerEvent::Triggered); }
-
-	FSlateFontInfo GetTriggerEventFont_Completed() const { return GetTriggerEventFont(ETriggerEvent::Completed); }
-
-	FSlateFontInfo GetTriggerEventFont(const ETriggerEvent triggerEvent) const;
 
 	EVisibility GetTriggerEventStrongMatchVisibility_Started() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Started); }
 
@@ -794,7 +786,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 							+ SGridPanel::Slot(0, 0)
 							[
 								SNew(STextBlock).Text(FText::FromString("S"))
-									.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Started)
+									.Font(inputEventFontInfo)
 									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Started)
 							]
 
@@ -828,7 +820,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 							+ SGridPanel::Slot(0, 0)
 							[
 								SNew(STextBlock).Text(FText::FromString("T"))
-									.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Triggered)
+									.Font(inputEventFontInfo)
 									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Triggered)
 							]
 
@@ -862,7 +854,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 						+SGridPanel::Slot(0, 0)
 							[
 								SNew(STextBlock).Text(FText::FromString("C"))
-									.Font_Raw(this, &SGraphPin_Input::GetTriggerEventFont_Completed)
+									.Font(inputEventFontInfo)
 									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
 							]
 
@@ -915,7 +907,11 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 				.OnEndSliderMovement(this, &SGraphPin_Input::OnEndSliderMovement)
 				.Value(this, &SGraphPin_Input::GetWaitTimeValue)
 				.OnValueChanged(this, &SGraphPin_Input::SetWaitTimeValue)
-				.OnValueCommitted(this, &SGraphPin_Input::SetWaitTimeValueCommited)
+				.OnValueCommitted(this, &SGraphPin_Input::SetWaitTimeValueCommited).LabelVAlign(VAlign_Center)
+				.Label()
+				[
+					SNew(STextBlock).Text(LOCTEXT("SGraphPin_Input_WaitTime", "Wait Time")).Font(labelFontInfo).ColorAndOpacity(this, &SGraphPin_Input::GetPinTextColor)
+				]
 		];
 
 	SetToolTip(SNew(SToolTip_Dummy));
@@ -959,7 +955,7 @@ FReply SGraphPin_Input::SetTriggerEvent(const ETriggerEvent triggerEvent) const
 		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
 		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(graphNode->NodeGuid));
 
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input_SetTriggerEvent", "Trigger Event"));
+		const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input_SetTriggerEvent", "Edit Trigger Event"));
 
 		inputState->Modify();
 
@@ -1007,23 +1003,6 @@ FSlateColor SGraphPin_Input::GetTriggerEventForegroundColor(const TSharedPtr<SBu
 	}
 
 	return color;
-}
-
-FSlateFontInfo SGraphPin_Input::GetTriggerEventFont(const ETriggerEvent triggerEvent) const
-{
-	if (PinObject && PinObject->DefaultObject)
-	{
-		UEdGraphNode* graphNode = PinObject->GetOwningNode();
-		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
-		UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(graphNode->NodeGuid));
-
-		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].TriggerEvent == triggerEvent)
-		{
-			return inputEventFontInfo_Selected;
-		}
-	}
-
-	return inputEventFontInfo;
 }
 
 EVisibility SGraphPin_Input::GetTriggerEventStrongMatchVisibility(const ETriggerEvent triggerEvent) const
@@ -1144,7 +1123,7 @@ void SGraphPin_Input::SetWaitTimeValue(const float NewValue) const
 	{
 		if (!bIsSliderValueChange)
 		{
-			const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::SetWaitTimeValue", "Wait Time"));
+			const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::SetWaitTimeValue", "Edit Wait Time"));
 
 			inputState->Modify();
 			inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].WaitTime = NewValue;
@@ -1173,7 +1152,7 @@ void SGraphPin_Input::OnBeginSliderMovement() const
 	UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
 	UInputSequenceState_Input* inputState = Cast<UInputSequenceState_Input>(inputSequence->GetState(graphNode->NodeGuid));
 
-	const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::OnBeginSliderMovement", "Wait Time"));
+	const FScopedTransaction Transaction(LOCTEXT("Transaction_SGraphPin_Input::OnBeginSliderMovement", "Edit Wait Time"));
 
 	inputState->Modify();
 	// Change will be during slider movement
@@ -1239,7 +1218,7 @@ void SEnhancedInputSequenceGraphNode_Input::CreateBelowPinControls(TSharedPtr<SV
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Cursor(EMouseCursor::Hand)
-				.ToolTipText(LOCTEXT("SEnhancedInputSequenceGraphNode_Input_Add_ToolTipText", "Click to add new pin"))
+				.ToolTipText(LOCTEXT("SEnhancedInputSequenceGraphNode_Input_Add_ToolTipText", "Click to add pin"))
 				.OnGetMenuContent(this, &SEnhancedInputSequenceGraphNode_Input::OnGetAddButtonMenuContent)
 				.ButtonContent()
 				[
@@ -1280,7 +1259,7 @@ void SEnhancedInputSequenceGraphNode_Hub::CreateBelowPinControls(TSharedPtr<SVer
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Cursor(EMouseCursor::Hand)
-				.ToolTipText(LOCTEXT("SEnhancedInputSequenceGraphNode_Hub_ToolTipText", "Click to add new pin"))
+				.ToolTipText(LOCTEXT("SEnhancedInputSequenceGraphNode_Hub_ToolTipText", "Click to add pin"))
 				.OnClicked_Raw(this, &SEnhancedInputSequenceGraphNode_Hub::OnClickedAddButton)
 				[
 					SNew(SImage).Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
@@ -2009,7 +1988,7 @@ FText UEnhancedInputSequenceGraphNode_Input::GetNodeTitle(ENodeTitleType::Type T
 			resetTimeString = FString::SanitizeFloat(inputSequence->GetResetTime(), 1);
 		}
 
-		return FText::Format(LOCTEXT("UEnhancedInputSequenceGraphNode_Input_NodeTitle_Ext", "Input node [{0}]{1}"), FText::FromString(resetTimeString), FText::FromString(inputState->bRequirePreciseMatch ? "!" : ""));
+		return FText::Format(LOCTEXT("UEnhancedInputSequenceGraphNode_Input_NodeTitle_Ext", "Input node [{0}]{1}"), FText::FromString(resetTimeString), FText::FromString(inputState->bRequireStrongMatch ? "~" : ""));
 	}
 
 	return LOCTEXT("UEnhancedInputSequenceGraphNode_Input_NodeTitle", "Input node");
@@ -2087,7 +2066,7 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override { return FLinearColor::White; }
 
 	virtual FName GetToolkitFName() const override { return FName("InputSequenceEditor"); }
-	virtual FText GetBaseToolkitName() const override { return NSLOCTEXT("FInputSequenceEditor", "BaseToolkitName", "Input Sequence Editor"); }
+	virtual FText GetBaseToolkitName() const override { return LOCTEXT("FInputSequenceEditor_BaseToolkitName", "Input Sequence Editor"); }
 	virtual FString GetWorldCentricTabPrefix() const override { return "InputSequenceEditor"; }
 
 protected:
@@ -2321,7 +2300,7 @@ void FInputSequenceEditor::OnSelectionChanged(const TSet<UObject*>& selectedNode
 {
 	if (selectedNodes.Num() == 1)
 	{
-		if (UEnhancedInputSequenceGraphNode_Base* graphNode = Cast<UEnhancedInputSequenceGraphNode_Base>(*selectedNodes.begin()))
+		if (UEnhancedInputSequenceGraphNode_Input* graphNode = Cast<UEnhancedInputSequenceGraphNode_Input>(*selectedNodes.begin()))
 		{
 			return DetailsView->SetObject(InputSequence->GetState(graphNode->NodeGuid));
 		}
