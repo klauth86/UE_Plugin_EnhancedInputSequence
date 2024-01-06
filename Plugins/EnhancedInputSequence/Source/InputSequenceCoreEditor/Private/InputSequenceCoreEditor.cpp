@@ -2305,6 +2305,11 @@ void FInputSequenceEditor::OnSelectionChanged(const TSet<UObject*>& selectedNode
 			return DetailsView->SetObject(InputSequence->GetState(graphNode->NodeGuid));
 		}
 
+		if (UEnhancedInputSequenceGraphNode_Reset* graphNode = Cast<UEnhancedInputSequenceGraphNode_Reset>(*selectedNodes.begin()))
+		{
+			return DetailsView->SetObject(InputSequence->GetState(graphNode->NodeGuid));
+		}
+
 		if (UEdGraphNode_Comment* commentNode = Cast<UEdGraphNode_Comment>(*selectedNodes.begin()))
 		{
 			return DetailsView->SetObject(commentNode);
