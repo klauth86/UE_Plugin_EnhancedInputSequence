@@ -51,6 +51,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
 	TObjectPtr<UInputSequenceRequestKey> RequestKey;
 
+	/* Requested with Payload Object */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
+	TObjectPtr<UObject> PayloadObject;
+
 	/* If true, all active states will be reset */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Reset Request")
 	uint8 bResetAll : 1;
@@ -77,6 +81,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
 	TObjectPtr<UInputSequenceRequestKey> RequestKey;
 
+	/* Requested with Payload Object */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
+	TObjectPtr<UObject> PayloadObject;
+
 	/* Requested Input Sequence Event */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Event Request")
 	TObjectPtr<UInputSequenceEvent_Base> Event;
@@ -94,9 +102,9 @@ class INPUTSEQUENCECORE_API UInputSequenceEvent_Base : public UObject
 public:
 
 	UFUNCTION(BlueprintNativeEvent, BlueprintCosmetic, BlueprintCallable, Category = "Input Sequence Event")
-	void Execute(UInputSequenceState_Base* state, UInputSequenceRequestKey* requestKey, const TArray<FInputSequenceResetRequest>& resetRequests);
+	void Execute(UInputSequenceState_Base* state, UInputSequenceRequestKey* requestKey, UObject* payloadObject, const TArray<FInputSequenceResetRequest>& resetRequests);
 
-	virtual void Execute_Implementation(UInputSequenceState_Base* state, UInputSequenceRequestKey* requestKey, const TArray<FInputSequenceResetRequest>& resetRequests) {}
+	virtual void Execute_Implementation(UInputSequenceState_Base* state, UInputSequenceRequestKey* requestKey, UObject* payloadObject, const TArray<FInputSequenceResetRequest>& resetRequests) {}
 
 	virtual UWorld* GetWorld() const override;
 };
@@ -178,6 +186,10 @@ public:
 	/* Request Key (used to identify context in Event and Reset Requests) */
 	UPROPERTY(EditAnywhere, Category = "Context:")
 	TObjectPtr<UInputSequenceRequestKey> RequestKey;
+
+	/* Payload object (used to customize Event and Reset Requests) */
+	UPROPERTY(EditAnywhere, Category = "Context:")
+	TObjectPtr<UObject> PayloadObject;
 };
 
 //------------------------------------------------------
@@ -219,6 +231,10 @@ public:
 	/* Request Key (used to identify context in Event and Reset Requests) */
 	UPROPERTY(EditAnywhere, Category = "Context:")
 	TObjectPtr<UInputSequenceRequestKey> RequestKey;
+
+	/* Payload object (used to customize Event and Reset Requests) */
+	UPROPERTY(EditAnywhere, Category = "Context:")
+	TObjectPtr<UObject> PayloadObject;
 
 	/* If true, state will be reset by any Input Action that is not listed */
 	UPROPERTY(EditAnywhere, Category = "Input:")
@@ -299,10 +315,10 @@ public:
 	 * @param requestKey - Request key to associate with this Reset Request
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Input Sequence")
-	void RequestReset(UInputSequenceRequestKey* requestKey)
+	void RequestReset(UInputSequenceRequestKey* requestKey, UObject* payloadObject)
 	{
 		bHasCachedRootStates = 0;
-		RequestReset(FGuid(), requestKey, true);
+		RequestReset(FGuid(), requestKey, payloadObject, true);
 	}
 
 	/* Sets World
@@ -317,7 +333,7 @@ protected:
 
 	void MakeTransition(const FGuid& fromStateId, const FInputSequenceStateCollection& nextStateCollection, TArray<FInputSequenceEventRequest>& outEventRequests);
 
-	void RequestReset(const FGuid& stateId, const TObjectPtr<UInputSequenceRequestKey> requestKey, const bool resetAll);
+	void RequestReset(const FGuid& stateId, const TObjectPtr<UInputSequenceRequestKey> requestKey, const TObjectPtr<UObject> payloadObject, const bool resetAll);
 
 	void EnterState(const FGuid& stateId, TArray<FInputSequenceEventRequest>& outEventRequests);
 
