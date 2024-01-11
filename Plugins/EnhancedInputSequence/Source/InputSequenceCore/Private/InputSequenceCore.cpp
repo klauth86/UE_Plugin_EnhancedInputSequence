@@ -96,6 +96,7 @@ void UInputSequenceState_Input::OnEnter(TArray<FInputSequenceEventRequest>& outE
 		int32 emplacedIndex = outEventCalls.Emplace();
 		outEventCalls[emplacedIndex].State = this;
 		outEventCalls[emplacedIndex].RequestKey = RequestKey;
+		outEventCalls[emplacedIndex].PayloadObject = PayloadObject;
 		outEventCalls[emplacedIndex].Event = enterEvent;
 	}
 }
@@ -107,6 +108,7 @@ void UInputSequenceState_Input::OnPass(TArray<FInputSequenceEventRequest>& outEv
 		int32 emplacedIndex = outEventCalls.Emplace();
 		outEventCalls[emplacedIndex].State = this;
 		outEventCalls[emplacedIndex].RequestKey = RequestKey;
+		outEventCalls[emplacedIndex].PayloadObject = PayloadObject;
 		outEventCalls[emplacedIndex].Event = passEvent;
 	}
 }
@@ -118,6 +120,7 @@ void UInputSequenceState_Input::OnReset(TArray<FInputSequenceEventRequest>& outE
 		int32 emplacedIndex = outEventCalls.Emplace();
 		outEventCalls[emplacedIndex].State = this;
 		outEventCalls[emplacedIndex].RequestKey = RequestKey;
+		outEventCalls[emplacedIndex].PayloadObject = PayloadObject;
 		outEventCalls[emplacedIndex].Event = resetEvent;
 	}
 }
@@ -188,7 +191,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 			{
 				switch (OnInput(inputActionEvents, inputState))
 				{
-				case InputSequenceCore::EConsumeInputResponse::RESET: RequestReset(stateId, inputState->RequestKey, false); break;
+				case InputSequenceCore::EConsumeInputResponse::RESET: RequestReset(stateId, inputState->RequestKey, inputState->PayloadObject, false); break;
 				case InputSequenceCore::EConsumeInputResponse::PASSED: MakeTransition(stateId, NextStateIds[stateId].StateIds.IsEmpty() ? RootStateIds[stateId] : NextStateIds[stateId], outEventRequests); break;
 				case InputSequenceCore::EConsumeInputResponse::NONE:
 				{
@@ -196,7 +199,7 @@ void UInputSequence::OnInput(const float deltaTime, const bool bGamePaused, cons
 					{
 						switch (OnTick(deltaTime, inputState))
 						{
-						case InputSequenceCore::EConsumeInputResponse::RESET: RequestReset(stateId, inputState->RequestKey, false); break;
+						case InputSequenceCore::EConsumeInputResponse::RESET: RequestReset(stateId, inputState->RequestKey, inputState->PayloadObject, false); break;
 						case InputSequenceCore::EConsumeInputResponse::PASSED: MakeTransition(stateId, NextStateIds[stateId].StateIds.IsEmpty() ? RootStateIds[stateId] : NextStateIds[stateId], outEventRequests); break;
 						case InputSequenceCore::EConsumeInputResponse::NONE: break;
 						default: check(0); break;
@@ -232,7 +235,7 @@ void UInputSequence::MakeTransition(const FGuid& fromStateId, const FInputSequen
 	}
 }
 
-void UInputSequence::RequestReset(const FGuid& stateId, const TObjectPtr<UInputSequenceRequestKey> requestKey, const bool resetAll)
+void UInputSequence::RequestReset(const FGuid& stateId, const TObjectPtr<UInputSequenceRequestKey> requestKey, const TObjectPtr<UObject> payloadObject, const bool resetAll)
 {
 	FScopeLock Lock(&resetRequestsCS);
 
@@ -240,6 +243,7 @@ void UInputSequence::RequestReset(const FGuid& stateId, const TObjectPtr<UInputS
 	ResetRequests[emplacedIndex].StateId = stateId;
 	ResetRequests[emplacedIndex].State = stateId.IsValid() ? States[stateId] : nullptr;
 	ResetRequests[emplacedIndex].RequestKey = requestKey;
+	ResetRequests[emplacedIndex].PayloadObject = payloadObject;
 	ResetRequests[emplacedIndex].bResetAll = resetAll;
 }
 
@@ -253,7 +257,7 @@ void UInputSequence::EnterState(const FGuid& stateId, TArray<FInputSequenceEvent
 
 		if (UInputSequenceState_Reset* resetState = Cast<UInputSequenceState_Reset>(States[stateId]))
 		{
-			RequestReset(stateId, resetState->RequestKey, true);
+			RequestReset(stateId, resetState->RequestKey, resetState->RequestKey, true);
 		}
 		else if (UInputSequenceState_Hub* hubState = Cast<UInputSequenceState_Hub>(States[stateId]))
 		{
@@ -545,7 +549,7 @@ void UEnhancedPlayerInput_EIS::ProcessInputStack(const TArray<UInputComponent*>&
 
 	for (const FInputSequenceEventRequest& eventRequest : eventRequests)
 	{
-		eventRequest.Event->Execute(eventRequest.State, eventRequest.RequestKey, resetRequests);
+		eventRequest.Event->Execute(eventRequest.State, eventRequest.RequestKey, eventRequest.PayloadObject, resetRequests);
 	}
 }
 
