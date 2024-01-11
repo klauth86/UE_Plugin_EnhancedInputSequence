@@ -157,9 +157,9 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Base : public UObject
 
 public:
 
-	virtual void OnEnter(TArray<FInputSequenceEventRequest>& outEventCalls, const float resetTime) {}
-	virtual void OnPass(TArray<FInputSequenceEventRequest>& outEventCalls) {}
-	virtual void OnReset(TArray<FInputSequenceEventRequest>& outEventCalls) {}
+	virtual void OnEnter(TArray<FInputSequenceEventRequest>& outEventRequests, const float resetTime) {}
+	virtual void OnPass(TArray<FInputSequenceEventRequest>& outEventRequests) {}
+	virtual void OnReset(TArray<FInputSequenceEventRequest>& outEventRequests) {}
 };
 
 //------------------------------------------------------
@@ -209,9 +209,9 @@ public:
 
 #endif
 
-	virtual void OnEnter(TArray<FInputSequenceEventRequest>& outEventCalls, const float resetTime) override;
-	virtual void OnPass(TArray<FInputSequenceEventRequest>& outEventCalls) override;
-	virtual void OnReset(TArray<FInputSequenceEventRequest>& outEventCalls) override;
+	virtual void OnEnter(TArray<FInputSequenceEventRequest>& outEventRequests, const float resetTime) override;
+	virtual void OnPass(TArray<FInputSequenceEventRequest>& outEventRequests) override;
+	virtual void OnReset(TArray<FInputSequenceEventRequest>& outEventRequests) override;
 
 	uint32 InputActionPassCount;
 

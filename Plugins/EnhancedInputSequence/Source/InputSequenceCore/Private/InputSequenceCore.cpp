@@ -77,7 +77,7 @@ UInputSequenceState_Input::UInputSequenceState_Input(const FObjectInitializer& O
 	ResetTimeLeft = 0;
 }
 
-void UInputSequenceState_Input::OnEnter(TArray<FInputSequenceEventRequest>& outEventCalls, const float resetTime)
+void UInputSequenceState_Input::OnEnter(TArray<FInputSequenceEventRequest>& outEventRequests, const float resetTime)
 {
 	InputActionPassCount = 0;
 
@@ -93,35 +93,35 @@ void UInputSequenceState_Input::OnEnter(TArray<FInputSequenceEventRequest>& outE
 
 	for (const TObjectPtr<UInputSequenceEvent_Base>& enterEvent : EnterEvents)
 	{
-		int32 emplacedIndex = outEventCalls.Emplace();
-		outEventCalls[emplacedIndex].State = this;
-		outEventCalls[emplacedIndex].RequestKey = RequestKey;
-		outEventCalls[emplacedIndex].PayloadObject = PayloadObject;
-		outEventCalls[emplacedIndex].Event = enterEvent;
+		int32 emplacedIndex = outEventRequests.Emplace();
+		outEventRequests[emplacedIndex].State = this;
+		outEventRequests[emplacedIndex].RequestKey = RequestKey;
+		outEventRequests[emplacedIndex].PayloadObject = PayloadObject;
+		outEventRequests[emplacedIndex].Event = enterEvent;
 	}
 }
 
-void UInputSequenceState_Input::OnPass(TArray<FInputSequenceEventRequest>& outEventCalls)
+void UInputSequenceState_Input::OnPass(TArray<FInputSequenceEventRequest>& outEventRequests)
 {
 	for (const TObjectPtr<UInputSequenceEvent_Base>& passEvent : PassEvents)
 	{
-		int32 emplacedIndex = outEventCalls.Emplace();
-		outEventCalls[emplacedIndex].State = this;
-		outEventCalls[emplacedIndex].RequestKey = RequestKey;
-		outEventCalls[emplacedIndex].PayloadObject = PayloadObject;
-		outEventCalls[emplacedIndex].Event = passEvent;
+		int32 emplacedIndex = outEventRequests.Emplace();
+		outEventRequests[emplacedIndex].State = this;
+		outEventRequests[emplacedIndex].RequestKey = RequestKey;
+		outEventRequests[emplacedIndex].PayloadObject = PayloadObject;
+		outEventRequests[emplacedIndex].Event = passEvent;
 	}
 }
 
-void UInputSequenceState_Input::OnReset(TArray<FInputSequenceEventRequest>& outEventCalls)
+void UInputSequenceState_Input::OnReset(TArray<FInputSequenceEventRequest>& outEventRequests)
 {
 	for (const TObjectPtr<UInputSequenceEvent_Base>& resetEvent : ResetEvents)
 	{
-		int32 emplacedIndex = outEventCalls.Emplace();
-		outEventCalls[emplacedIndex].State = this;
-		outEventCalls[emplacedIndex].RequestKey = RequestKey;
-		outEventCalls[emplacedIndex].PayloadObject = PayloadObject;
-		outEventCalls[emplacedIndex].Event = resetEvent;
+		int32 emplacedIndex = outEventRequests.Emplace();
+		outEventRequests[emplacedIndex].State = this;
+		outEventRequests[emplacedIndex].RequestKey = RequestKey;
+		outEventRequests[emplacedIndex].PayloadObject = PayloadObject;
+		outEventRequests[emplacedIndex].Event = resetEvent;
 	}
 }
 
@@ -257,7 +257,7 @@ void UInputSequence::EnterState(const FGuid& stateId, TArray<FInputSequenceEvent
 
 		if (UInputSequenceState_Reset* resetState = Cast<UInputSequenceState_Reset>(States[stateId]))
 		{
-			RequestReset(stateId, resetState->RequestKey, resetState->RequestKey, true);
+			RequestReset(stateId, resetState->RequestKey, resetState->PayloadObject, true);
 		}
 		else if (UInputSequenceState_Hub* hubState = Cast<UInputSequenceState_Hub>(States[stateId]))
 		{
