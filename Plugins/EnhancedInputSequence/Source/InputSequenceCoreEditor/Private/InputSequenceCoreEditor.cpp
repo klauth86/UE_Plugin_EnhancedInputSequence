@@ -95,13 +95,13 @@ void GetAssetsFromAssetRegistry(TArray<FAssetData>& outAssetDatas)
 
 void AddPinToDynamicNode(UEdGraphNode* graphNode, FName category, FName pinName, TObjectPtr<UInputAction> inputAction)
 {
+	const FScopedTransaction Transaction(LOCTEXT("Transaction_AddPinToDynamicNode", "Add Pin"));
+
+	graphNode->Modify();
+	UEdGraphPin* graphPin = graphNode->CreatePin(EGPD_Output, category, pinName, UEdGraphNode::FCreatePinParams());
+
 	if (inputAction)
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Transaction_AddPinToDynamicNode", "Add Pin"));
-
-		graphNode->Modify();
-		UEdGraphPin* graphPin = graphNode->CreatePin(EGPD_Output, category, pinName, UEdGraphNode::FCreatePinParams());
-
 		graphPin->DefaultObject = inputAction;
 
 		UInputSequence* inputSequence = graphNode->GetTypedOuter<UInputSequence>();
@@ -109,9 +109,9 @@ void AddPinToDynamicNode(UEdGraphNode* graphNode, FName category, FName pinName,
 
 		inputState->Modify();
 		inputState->AddInputActionInfo(inputAction);
-
-		Cast<UEnhancedInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 	}
+
+	Cast<UEnhancedInputSequenceGraphNode_Dynamic>(graphNode)->OnUpdateGraphNode.ExecuteIfBound();
 }
 
 //------------------------------------------------------
