@@ -114,7 +114,7 @@ public:
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputActionInfo
+struct INPUTSEQUENCECORE_API FInputActionInfo
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -255,7 +255,7 @@ public:
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputSequenceStateCollection
+struct INPUTSEQUENCECORE_API FInputSequenceStateCollection
 {
 	GENERATED_USTRUCT_BODY()
 
