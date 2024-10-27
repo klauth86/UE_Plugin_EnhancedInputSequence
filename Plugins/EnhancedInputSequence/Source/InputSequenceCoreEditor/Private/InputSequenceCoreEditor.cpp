@@ -695,6 +695,8 @@ protected:
 
 	FReply OnClicked_Triggered() const { return SetTriggerEvent(ETriggerEvent::Triggered); }
 
+	FReply OnClicked_Canceled() const { return SetTriggerEvent(ETriggerEvent::Canceled); }
+
 	FReply OnClicked_Completed() const { return SetTriggerEvent(ETriggerEvent::Completed); }
 
 	FReply SetTriggerEvent(const ETriggerEvent triggerEvent) const;
@@ -703,6 +705,8 @@ protected:
 
 	FSlateColor GetTriggerEventForegroundColor_Triggered() const { return GetTriggerEventForegroundColor(ButtonTriggeredPtr, ETriggerEvent::Triggered); }
 
+	FSlateColor GetTriggerEventForegroundColor_Canceled() const { return GetTriggerEventForegroundColor(ButtonCanceledPtr, ETriggerEvent::Canceled); }
+	
 	FSlateColor GetTriggerEventForegroundColor_Completed() const { return GetTriggerEventForegroundColor(ButtonCompletedPtr, ETriggerEvent::Completed); }
 
 	FSlateColor GetTriggerEventForegroundColor(const TSharedPtr<SButton>& buttonPtr, const ETriggerEvent triggerEvent) const;
@@ -711,6 +715,8 @@ protected:
 
 	EVisibility GetTriggerEventStrongMatchVisibility_Triggered() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Triggered); }
 
+	EVisibility GetTriggerEventStrongMatchVisibility_Canceled() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Canceled); }
+	
 	EVisibility GetTriggerEventStrongMatchVisibility_Completed() const { return GetTriggerEventStrongMatchVisibility(ETriggerEvent::Completed); }
 
 	EVisibility GetTriggerEventStrongMatchVisibility(const ETriggerEvent triggerEvent) const;
@@ -719,6 +725,8 @@ protected:
 
 	EVisibility GetTriggerEventPreciseMatchVisibility_Triggered() const { return GetTriggerEventPreciseMatchVisibility(ETriggerEvent::Triggered); }
 
+	EVisibility GetTriggerEventPreciseMatchVisibility_Canceled() const { return GetTriggerEventPreciseMatchVisibility(ETriggerEvent::Canceled); }
+	
 	EVisibility GetTriggerEventPreciseMatchVisibility_Completed() const { return GetTriggerEventPreciseMatchVisibility(ETriggerEvent::Completed); }
 
 	EVisibility GetTriggerEventPreciseMatchVisibility(const ETriggerEvent triggerEvent) const;
@@ -727,6 +735,8 @@ protected:
 
 	FText ToolTipText_Triggered() const { return ToolTipText(ETriggerEvent::Triggered); }
 
+	FText ToolTipText_Canceled() const { return ToolTipText(ETriggerEvent::Canceled); }
+	
 	FText ToolTipText_Completed() const { return ToolTipText(ETriggerEvent::Completed); }
 
 	FText ToolTipText(const ETriggerEvent triggerEvent) const;
@@ -747,6 +757,7 @@ protected:
 
 	TSharedPtr<SButton> ButtonStartedPtr;
 	TSharedPtr<SButton> ButtonTriggeredPtr;
+	TSharedPtr<SButton> ButtonCanceledPtr;
 	TSharedPtr<SButton> ButtonCompletedPtr;
 
 	UEdGraphPin* PinObject;
@@ -846,6 +857,40 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, padding, 0, 0)
 			[
+				SAssignNew(ButtonCanceledPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
+					.Cursor(EMouseCursor::Hand)
+					.ToolTipText_Raw(this, &SGraphPin_Input::ToolTipText_Canceled)
+					.OnClicked_Raw(this, &SGraphPin_Input::OnClicked_Canceled)
+					[
+						SNew(SGridPanel).FillColumn(0, 0).FillColumn(1, 0)
+
+							+ SGridPanel::Slot(0, 0)
+							[
+								SNew(STextBlock).Text(FText::FromString("C-"))
+									.Font(inputEventFontInfo)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Canceled)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("~"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Canceled)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventStrongMatchVisibility_Canceled)
+							]
+
+							+ SGridPanel::Slot(1, 0).VAlign(VAlign_Top).HAlign(HAlign_Center)
+							[
+								SNew(STextBlock).Text(FText::FromString("!"))
+									.Font(pinFontInfo_Selected)
+									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Canceled)
+									.Visibility_Raw(this, &SGraphPin_Input::GetTriggerEventPreciseMatchVisibility_Canceled)
+							]
+					]
+			]
+
+			+ SHorizontalBox::Slot().FillWidth(1).Padding(padding, padding, 0, 0)
+			[
 				SAssignNew(ButtonCompletedPtr, SButton).ButtonStyle(FAppStyle::Get(), NAME_NoBorder)
 					.Cursor(EMouseCursor::Hand)
 					.ToolTipText_Raw(this, &SGraphPin_Input::ToolTipText_Completed)
@@ -855,7 +900,7 @@ void SGraphPin_Input::Construct(const FArguments& Args, UEdGraphPin* InPin)
 
 						+SGridPanel::Slot(0, 0)
 							[
-								SNew(STextBlock).Text(FText::FromString("C"))
+								SNew(STextBlock).Text(FText::FromString("C+"))
 									.Font(inputEventFontInfo)
 									.ColorAndOpacity_Raw(this, &SGraphPin_Input::GetTriggerEventForegroundColor_Completed)
 							]
@@ -1086,6 +1131,23 @@ FText SGraphPin_Input::ToolTipText(const ETriggerEvent triggerEvent) const
 		else
 		{
 			return LOCTEXT("SGraphPin_Input_TooltipText_Triggered", "Triggered");
+		}
+	}
+	break;
+
+	case ETriggerEvent::Canceled:
+	{
+		if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequirePreciseMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Canceled_P", "Canceled (Precise)");
+		}
+		else if (inputState->InputActionInfos[Cast<UInputAction>(PinObject->DefaultObject)].bRequireStrongMatch)
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Canceled_S", "Canceled (Strong)");
+		}
+		else
+		{
+			return LOCTEXT("SGraphPin_Input_TooltipText_Canceled", "Canceled");
 		}
 	}
 	break;
