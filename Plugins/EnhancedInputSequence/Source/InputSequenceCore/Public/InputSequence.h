@@ -114,7 +114,7 @@ public:
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputActionInfo
+struct INPUTSEQUENCECORE_API FInputActionInfo
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -203,6 +203,12 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UInputSequenceSta
 
 public:
 
+#if WITH_EDITOR
+
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+
+#endif
+
 #if WITH_EDITORONLY_DATA
 
 	void AddInputActionInfo(UInputAction* inputAction) { InputActionInfos.Add(inputAction, FInputActionInfo()); }
@@ -255,7 +261,7 @@ public:
 //------------------------------------------------------
 
 USTRUCT()
-struct FInputSequenceStateCollection
+struct INPUTSEQUENCECORE_API FInputSequenceStateCollection
 {
 	GENERATED_USTRUCT_BODY()
 

@@ -77,6 +77,43 @@ UInputSequenceState_Input::UInputSequenceState_Input(const FObjectInitializer& O
 	ResetTimeLeft = 0;
 }
 
+#if WITH_EDITOR
+
+void UInputSequenceState_Input::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.Property != nullptr && PropertyChangedEvent.MemberProperty != nullptr)
+	{
+		const FName PropertyName(PropertyChangedEvent.Property->GetFName());
+		const FName MemberPropertyName(PropertyChangedEvent.MemberProperty->GetFName());
+
+		if (PropertyName == MemberPropertyName && PropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet)
+		{
+			if (PropertyName == GET_MEMBER_NAME_CHECKED(UInputSequenceState_Input, EnterEvents))
+			{
+				const int32 arrayIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(UInputSequenceState_Input, EnterEvents));
+				TObjectPtr<UInputSequenceEvent_Base> objectToDuplicate = EnterEvents[arrayIndex];
+				EnterEvents[arrayIndex] = DuplicateObject(objectToDuplicate, objectToDuplicate->GetOuter());
+			}
+			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UInputSequenceState_Input, PassEvents))
+			{
+				const int32 arrayIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(UInputSequenceState_Input, PassEvents));
+				TObjectPtr<UInputSequenceEvent_Base> objectToDuplicate = PassEvents[arrayIndex];
+				PassEvents[arrayIndex] = DuplicateObject(objectToDuplicate, objectToDuplicate->GetOuter());
+			}
+			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UInputSequenceState_Input, ResetEvents))
+			{
+				const int32 arrayIndex = PropertyChangedEvent.GetArrayIndex(GET_MEMBER_NAME_STRING_CHECKED(UInputSequenceState_Input, ResetEvents));
+				TObjectPtr<UInputSequenceEvent_Base> objectToDuplicate = ResetEvents[arrayIndex];
+				ResetEvents[arrayIndex] = DuplicateObject(objectToDuplicate, objectToDuplicate->GetOuter());
+			}
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+#endif
+
 void UInputSequenceState_Input::OnEnter(TArray<FInputSequenceEventRequest>& outEventRequests, const float resetTime)
 {
 	InputActionPassCount = 0;
