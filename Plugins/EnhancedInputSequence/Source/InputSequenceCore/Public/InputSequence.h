@@ -203,6 +203,12 @@ class INPUTSEQUENCECORE_API UInputSequenceState_Input : public UInputSequenceSta
 
 public:
 
+#if WITH_EDITOR
+
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+
+#endif
+
 #if WITH_EDITORONLY_DATA
 
 	void AddInputActionInfo(UInputAction* inputAction) { InputActionInfos.Add(inputAction, FInputActionInfo()); }
