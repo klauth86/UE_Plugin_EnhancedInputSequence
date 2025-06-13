@@ -436,8 +436,8 @@ void SEnhancedInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 			.IsGraphNodeHovered(this, &SGraphNode::IsHovered);
 
 		GetOrAddSlot(ENodeZone::TopCenter)
-			.SlotOffset(TAttribute<FVector2D>(CommentBubble.Get(), &SCommentBubble::GetOffset))
-			.SlotSize(TAttribute<FVector2D>(CommentBubble.Get(), &SCommentBubble::GetSize))
+			.SlotOffset2f(TAttribute<FVector2f>(CommentBubble.Get(), &SCommentBubble::GetOffset2f))
+			.SlotSize2f(TAttribute<FVector2f>(CommentBubble.Get(), &SCommentBubble::GetSize2f))
 			.AllowScaling(TAttribute<bool>(CommentBubble.Get(), &SCommentBubble::IsScalingAllowed))
 			.VAlign(VAlign_Top)
 			[
@@ -663,7 +663,7 @@ protected:
 			for (int32 ActionIndex = 0; ActionIndex < SelectedActions.Num(); ActionIndex++)
 			{
 				FSlateApplication::Get().DismissAllMenus();
-				SelectedActions[ActionIndex]->PerformAction(Node->GetGraph(), Node->FindPin(NAME_None, EGPD_Input), FVector2D::ZeroVector);
+				SelectedActions[ActionIndex]->PerformAction(Node->GetGraph(), Node->FindPin(NAME_None, EGPD_Input), FVector2f::ZeroVector);
 			}
 		}
 	}
@@ -1626,7 +1626,7 @@ public:
 		}
 	}
 
-	virtual void DrawSplineWithArrow(const FVector2D& StartPoint, const FVector2D& EndPoint, const FConnectionParams& Params) override
+	virtual void DrawSplineWithArrow(const FVector2f& StartPoint, const FVector2f& EndPoint, const FConnectionParams& Params) override
 	{
 		DrawConnection(
 			WireLayerID,
@@ -2553,7 +2553,7 @@ void FInputSequenceEditor::PasteNodes()
 	{
 		if (graphEditor.IsValid())
 		{
-			FVector2D Location = graphEditor->GetPasteLocation();
+			FVector2f Location = graphEditor->GetPasteLocation2f();
 
 			UEdGraph* graph = graphEditor->GetCurrentGraph();
 
