@@ -8,8 +8,8 @@ public class UE_Plugin_EnhancedInputSequenceTarget : TargetRules
 	public UE_Plugin_EnhancedInputSequenceTarget( TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
-		DefaultBuildSettings = BuildSettingsVersion.V4;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_1;
+		DefaultBuildSettings = BuildSettingsVersion.V6;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_6;
 		ExtraModuleNames.Add("UE_Plugin_EnhancedInputSequence");
 	}
 }
