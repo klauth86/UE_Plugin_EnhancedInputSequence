@@ -330,7 +330,7 @@ void SEnhancedInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 	PopulateMetaTag(&TagMeta);
 
 	TSharedPtr<SVerticalBox> InnerVerticalBox;
-	this->ContentScale.Bind(this, &SGraphNode::GetContentScale);
+	//this->ContentScale.Bind(this, &SGraphNode::GetContentScale);
 
 
 	InnerVerticalBox = SNew(SVerticalBox)
