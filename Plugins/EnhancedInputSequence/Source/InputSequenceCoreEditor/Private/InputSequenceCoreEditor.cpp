@@ -330,7 +330,6 @@ void SEnhancedInputSequenceGraphNode_Dynamic::UpdateGraphNode()
 	PopulateMetaTag(&TagMeta);
 
 	TSharedPtr<SVerticalBox> InnerVerticalBox;
-	//this->ContentScale.Bind(this, &SGraphNode::GetContentScale);
 
 
 	InnerVerticalBox = SNew(SVerticalBox)
@@ -1678,12 +1677,12 @@ UEnhancedInputSequenceGraph::UEnhancedInputSequenceGraph(const FObjectInitialize
 // FEnhancedInputSequenceGraphSchemaAction_NewComment
 //------------------------------------------------------
 
-UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewComment::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode/* = true*/)
+UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewComment::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2f& Location, bool bSelectNewNode/* = true*/)
 {
 	// Add menu item for creating comment boxes
 	UEdGraphNode_Comment* CommentTemplate = NewObject<UEdGraphNode_Comment>();
 
-	FVector2D SpawnLocation = Location;
+	FVector2f SpawnLocation = Location;
 
 	CommentTemplate->SetBounds(SelectedNodesBounds);
 	SpawnLocation.X = CommentTemplate->NodePosX;
@@ -1696,7 +1695,7 @@ UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewComment::PerformAction(
 // FEnhancedInputSequenceGraphSchemaAction_NewNode
 //------------------------------------------------------
 
-UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGraph* graph, UEdGraphPin* graphPin, const FVector2D Location, bool bSelectNewNode)
+UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_NewNode::PerformAction(class UEdGraph* graph, UEdGraphPin* graphPin, const FVector2f& Location, bool bSelectNewNode)
 {
 	UEdGraphNode* ResultNode = NULL;
 
@@ -1764,7 +1763,7 @@ void FEnhancedInputSequenceGraphSchemaAction_NewNode::AddReferencedObjects(FRefe
 // FEnhancedInputSequenceGraphSchemaAction_AddPin
 //------------------------------------------------------
 
-UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+UEdGraphNode* FEnhancedInputSequenceGraphSchemaAction_AddPin::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2f& Location, bool bSelectNewNode)
 {
 	check(InputAction);
 
@@ -2676,7 +2675,7 @@ void FInputSequenceEditor::OnCreateComment()
 			if (newCommentAction.IsValid())
 			{
 				graphEditor->GetBoundsForSelectedNodes(newCommentAction->SelectedNodesBounds, 50);
-				newCommentAction->PerformAction(graphEditor->GetCurrentGraph(), nullptr, FVector2D());
+				newCommentAction->PerformAction(graphEditor->GetCurrentGraph(), nullptr, FVector2f::ZeroVector);
 			}
 		}
 	}
